@@ -23,21 +23,50 @@ type TemplateParser struct {
 	varRefRe  *regexp.Regexp
 }
 
+const (
+	// Single identifier: app, name, config (no dots or brackets)
+	identifier = `[a-zA-Z][a-zA-Z0-9_]*`
+
+	// Template pipeline delimiters {{ }}
+	pipelineOpen  = `\{\{-?\s*`
+	pipelineClose = `\s*-?\}\}`
+
+	// Assignment operator with whitespace
+	assign = `\s*:=\s*`
+	
+	// Value path: identifier with optional .identifier or [digits] repeated
+	// Examples: app, app.name, config.database.host, items[0].name
+	valuePath = identifier + `(?:\.` + identifier + `|\[\d+\])*?`
+
+	// Value boundary: where a value path stops (not a path character)
+	// Examples: .Values.app.name }} → stops at space before }}
+	//           .Values.app.name | quote → stops at space before |
+	//           .Values.app.name%invalid → stops at %
+	valueBoundary = `(?:[^a-zA-Z0-9._\[\]]|$)`
+
+	// Pipeline boundary: where a pipeline expression can transition
+	// Examples: $var := .Values.path }} → can end pipeline
+	//           $var := .Values.path | default → can continue pipeline with |
+	//           $var := .Values.path | quote }} → can continue then end
+	pipelineBoundary = `(?:\s*[|}\s]|\s*-?\}\})`
+)
+
+// capture wraps a pattern in capturing parentheses for regex groups
+func capture(pattern string) string {
+	return `(` + pattern + `)`
+}
+
 // New creates a new template parser instance
 func New() *TemplateParser {
-	// Regex to match .Values.* expressions in Go templates
-	re := regexp.MustCompile(`\.Values\.([a-zA-Z][a-zA-Z0-9._\[\]]*?)(?:[^a-zA-Z0-9._\[\]]|$)`)
-	// Regex to match variable assignments: {{ $var := .Values.path }}
-	varRe := regexp.MustCompile(`\{\{-?\s*\$([a-zA-Z][a-zA-Z0-9_]*)\s*:=\s*\.Values\.([a-zA-Z][a-zA-Z0-9._\[\]]*?)(?:\s*[|}]|\s*-?\}\})`)
-	// Regex to match variable references: {{ $var.field }}
-	varRefRe := regexp.MustCompile(`\$([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z][a-zA-Z0-9._\[\]]*?)(?:[^a-zA-Z0-9._\[\]]|$)`)
-	
 	return &TemplateParser{
 		values:    make(map[string]*ValuePath),
 		variables: make(map[string]string),
-		re:        re,
-		varRe:     varRe,
-		varRefRe:  varRefRe,
+		// Match: .Values.path
+		re: regexp.MustCompile(`\.Values\.` + capture(valuePath) + valueBoundary),
+		// Match: {{ $var := .Values.path }}
+		varRe: regexp.MustCompile(pipelineOpen + `\$` + capture(identifier) + assign + `\.Values\.` + capture(valuePath) + pipelineBoundary),
+		// Match: $var.field
+		varRefRe: regexp.MustCompile(`\$` + capture(identifier) + `\.` + capture(valuePath) + valueBoundary),
 	}
 }
 
@@ -73,9 +102,7 @@ func (tp *TemplateParser) parseVariableAssignments(content string) {
 	for _, match := range matches {
 		if len(match) > 2 {
 			varName := match[1]
-			valuePath := match[2]
-			// Clean up the path
-			valuePath = strings.TrimRight(valuePath, ".,;:!?")
+			valuePath := tp.normalizePath(match[2])
 			if valuePath != "" {
 				tp.variables[varName] = valuePath
 			}
@@ -83,17 +110,13 @@ func (tp *TemplateParser) parseVariableAssignments(content string) {
 	}
 }
 
-// parseDirectValueReferences finds direct {{ .Values.path }} patterns  
+// parseDirectValueReferences finds direct {{ .Values.path }} patterns
 func (tp *TemplateParser) parseDirectValueReferences(content string) {
 	matches := tp.re.FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
-			path := match[1]
-			// Clean up the path (remove trailing punctuation)
-			path = strings.TrimRight(path, ".,;:!?")
-
+			path := tp.normalizePath(match[1])
 			if path != "" {
-				// Check if this path is used in a range context
 				isRanged := tp.isUsedInRange(content, path)
 				tp.addValuePathWithContext(path, isRanged)
 			}
@@ -107,15 +130,10 @@ func (tp *TemplateParser) parseVariableReferences(content string) {
 	for _, match := range matches {
 		if len(match) > 2 {
 			varName := match[1]
-			fieldPath := match[2]
-			// Clean up the field path
-			fieldPath = strings.TrimRight(fieldPath, ".,;:!?")
+			fieldPath := tp.normalizePath(match[2])
 
 			if basePath, exists := tp.variables[varName]; exists && fieldPath != "" {
-				// Construct the full path: basePath.fieldPath
 				fullPath := basePath + "." + fieldPath
-				
-				// Check if this variable reference is used in a range context
 				varRef := "$" + varName + "." + fieldPath
 				isRanged := tp.isVariableUsedInRange(content, varRef)
 				tp.addValuePathWithContext(fullPath, isRanged)
@@ -126,22 +144,23 @@ func (tp *TemplateParser) parseVariableReferences(content string) {
 
 // isUsedInRange checks if a path appears in a Go template range statement
 func (tp *TemplateParser) isUsedInRange(content, path string) bool {
-	// Check if the path appears in a range statement
-	rangePattern := regexp.MustCompile(`\{\{-?\s*range\s+[^}]*\.Values\.` + regexp.QuoteMeta(path) + `[^}]*\}\}`)
-	return rangePattern.MatchString(content)
+	return tp.isPatternInRange(content, `\.Values\.`+regexp.QuoteMeta(path))
 }
 
 // isVariableUsedInRange checks if a variable reference appears in a range statement
 func (tp *TemplateParser) isVariableUsedInRange(content, varRef string) bool {
-	// Check if the variable reference appears in a range statement
-	rangePattern := regexp.MustCompile(`\{\{-?\s*range\s+[^}]*` + regexp.QuoteMeta(varRef) + `[^}]*\}\}`)
+	return tp.isPatternInRange(content, regexp.QuoteMeta(varRef))
+}
+
+// isPatternInRange checks if a pattern appears in any range statement
+func (tp *TemplateParser) isPatternInRange(content, pattern string) bool {
+	rangePattern := regexp.MustCompile(pipelineOpen + `range\s+[^}]*` + pattern + `[^}]*` + pipelineClose)
 	return rangePattern.MatchString(content)
 }
 
 // addValuePathWithContext adds a value path with contextual type inference
 func (tp *TemplateParser) addValuePathWithContext(path string, isRanged bool) {
-	// Normalize array notation [0] to []
-	normalizedPath := regexp.MustCompile(`\[\d+\]`).ReplaceAllString(path, "[]")
+	normalizedPath := tp.normalizePath(path)
 
 	if _, exists := tp.values[normalizedPath]; !exists {
 		tp.values[normalizedPath] = &ValuePath{
@@ -150,6 +169,14 @@ func (tp *TemplateParser) addValuePathWithContext(path string, isRanged bool) {
 			Required: false,
 		}
 	}
+}
+
+// normalizePath cleans up path strings
+func (tp *TemplateParser) normalizePath(path string) string {
+	// Remove trailing punctuation
+	path = strings.TrimRight(path, ".,;:!?")
+	// Normalize array notation [0] to []
+	return regexp.MustCompile(`\[\d+\]`).ReplaceAllString(path, "[]")
 }
 
 // inferTypeWithContext performs heuristic type inference based on path patterns and context
