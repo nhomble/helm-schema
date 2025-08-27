@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  {{- if and (.Values.rollout) (.Values.rollout.enabled) }}
+  annotations:
+    deployment.kubernetes.io/revision: "{{ .Values.rollout.revision | default 1 }}"
+    rollout.argoproj.io/strategy: {{ .Values.rollout.strategy }}
+  {{- end }}
+  labels:
+    app: {{ .Values.app.name }}
+    {{- if or (.Values.app.environment) (.Values.global.env) }}
+    environment: {{ .Values.app.environment | default .Values.global.env }}
+    {{- end }}
+spec:
+  {{- if and (.Values.scaling) (.Values.scaling.enabled) }}
+  replicas: {{ .Values.scaling.replicas | default .Values.app.replicas | default 3 }}
+  {{- else }}
+  replicas: {{ .Values.app.replicas | default 1 }}
+  {{- end }}
+  
+  {{- if and (.Values.rollout) (.Values.rollout.enabled) (.Values.rollout.maxSurge) }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: {{ .Values.rollout.maxSurge }}
+      maxUnavailable: {{ .Values.rollout.maxUnavailable | default "25%" }}
+  {{- end }}
+  
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+      {{- if .Values.app.version }}
+      version: {{ .Values.app.version }}
+      {{- end }}
+  
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name }}
+        {{- if .Values.app.version }}
+        version: {{ .Values.app.version }}
+        {{- end }}
+      {{- if or (.Values.monitoring) (.Values.metrics.enabled) }}
+      annotations:
+        {{- if and (.Values.monitoring) (.Values.monitoring.prometheus) }}
+        prometheus.io/scrape: "{{ .Values.monitoring.prometheus.scrape | default true }}"
+        prometheus.io/port: "{{ .Values.monitoring.prometheus.port | default .Values.service.port }}"
+        {{- end }}
+        {{- if .Values.metrics.enabled }}
+        metrics.enabled: "true"
+        metrics.path: {{ .Values.metrics.path | default "/metrics" }}
+        {{- end }}
+      {{- end }}
+    spec:
+      containers:
+      - name: {{ .Values.app.name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        {{- if and (.Values.security) (.Values.security.runAsNonRoot) }}
+        securityContext:
+          runAsNonRoot: {{ .Values.security.runAsNonRoot }}
+          runAsUser: {{ .Values.security.runAsUser | default 1000 }}
+          {{- if .Values.security.capabilities }}
+          capabilities:
+            drop:
+            {{- range .Values.security.capabilities.drop }}
+            - {{ . }}
+            {{- end }}
+            {{- if .Values.security.capabilities.add }}
+            add:
+            {{- range .Values.security.capabilities.add }}
+            - {{ . }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.port }}
+        {{- if and (.Values.monitoring) (.Values.monitoring.prometheus) (.Values.monitoring.prometheus.port) }}
+        - name: metrics
+          containerPort: {{ .Values.monitoring.prometheus.port }}
+        {{- end }}
+        env:
+        {{- if or (.Values.database) (.Values.external.database) }}
+        - name: DATABASE_URL
+          value: "{{ if .Values.database }}{{ .Values.database.url }}{{ else }}{{ .Values.external.database.connectionString }}{{ end }}"
+        {{- end }}
+        {{- if and (.Values.features) (.Values.features.experimental) }}
+        - name: ENABLE_EXPERIMENTAL
+          value: "{{ .Values.features.experimental.enabled | default false }}"
+        {{- if .Values.features.experimental.flags }}
+        - name: EXPERIMENTAL_FLAGS
+          value: "{{ .Values.features.experimental.flags | join "," }}"
+        {{- end }}
+        {{- end }}
+        {{- if .Values.config }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Values.app.name }}-config
+        {{- end }}

@@ -1,0 +1,58 @@
+{{- if and (.Values.service) (not (eq .Values.service.type "None")) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.app.name }}-service
+  labels:
+    app: {{ .Values.app.name }}
+  {{- if and (.Values.service.annotations) (or (.Values.loadBalancer.enabled) (.Values.service.external)) }}
+  annotations:
+    {{- if and (.Values.loadBalancer) (.Values.loadBalancer.enabled) }}
+    service.beta.kubernetes.io/aws-load-balancer-type: {{ .Values.loadBalancer.type | default "nlb" }}
+    {{- if .Values.loadBalancer.internal }}
+    service.beta.kubernetes.io/aws-load-balancer-internal: "{{ .Values.loadBalancer.internal }}"
+    {{- end }}
+    {{- if .Values.loadBalancer.subnets }}
+    service.beta.kubernetes.io/aws-load-balancer-subnets: {{ .Values.loadBalancer.subnets | join "," }}
+    {{- end }}
+    {{- end }}
+    {{- range $key, $value := .Values.service.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  {{- if and (eq .Values.service.type "LoadBalancer") (.Values.service.loadBalancerIP) }}
+  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+  {{- end }}
+  {{- if and (.Values.service.external) (.Values.service.external.ips) }}
+  externalIPs:
+  {{- range .Values.service.external.ips }}
+  - {{ . }}
+  {{- end }}
+  {{- end }}
+  ports:
+  - name: http
+    port: {{ .Values.service.port }}
+    targetPort: http
+    {{- if and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (.Values.service.nodePort) }}
+    nodePort: {{ .Values.service.nodePort }}
+    {{- end }}
+  {{- if and (.Values.monitoring) (.Values.monitoring.prometheus) (.Values.monitoring.prometheus.port) }}
+  - name: metrics
+    port: {{ .Values.monitoring.prometheus.port }}
+    targetPort: metrics
+  {{- end }}
+  {{- if and (.Values.service.additionalPorts) (gt (len .Values.service.additionalPorts) 0) }}
+  {{- range .Values.service.additionalPorts }}
+  - name: {{ .name }}
+    port: {{ .port }}
+    targetPort: {{ .targetPort | default .port }}
+    {{- if .protocol }}
+    protocol: {{ .protocol }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  selector:
+    app: {{ .Values.app.name }}
+{{- end }}

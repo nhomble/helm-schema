@@ -1,0 +1,91 @@
+{{- if or (.Values.config) (and (.Values.features) (.Values.features.configGeneration)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.app.name }}-config
+data:
+  {{- if .Values.config.properties }}
+  {{- range $key, $value := .Values.config.properties }}
+  {{- if and $value (not (empty $value)) }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  
+  {{- if and (.Values.database) (or (.Values.database.migrations) (.Values.database.config)) }}
+  database.yaml: |
+    {{- if .Values.database.config }}
+    {{- toYaml .Values.database.config | nindent 4 }}
+    {{- end }}
+    {{- if .Values.database.migrations }}
+    migrations:
+      enabled: {{ .Values.database.migrations.enabled | default false }}
+      {{- if .Values.database.migrations.scripts }}
+      scripts:
+      {{- range .Values.database.migrations.scripts }}
+      - name: {{ .name }}
+        version: {{ .version }}
+        {{- if .rollback }}
+        rollback: {{ .rollback }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  
+  {{- if and (.Values.features) (.Values.features.flags) }}
+  features.json: |
+    {
+      {{- $lastIndex := sub (len .Values.features.flags) 1 }}
+      {{- range $index, $flag := .Values.features.flags }}
+      "{{ $flag.name }}": {
+        "enabled": {{ $flag.enabled | default false }},
+        {{- if $flag.description }}
+        "description": {{ $flag.description | quote }},
+        {{- end }}
+        {{- if $flag.conditions }}
+        "conditions": {
+          {{- $condLastIndex := sub (len $flag.conditions) 1 }}
+          {{- range $condIndex, $condition := $flag.conditions }}
+          "{{ $condition.name }}": {{ $condition.value | quote }}{{- if ne $condIndex $condLastIndex }},{{- end }}
+          {{- end }}
+        }{{- if $flag.rollout }},
+        "rollout": {
+          "percentage": {{ $flag.rollout.percentage | default 0 }}{{- if $flag.rollout.groups }},
+          "groups": [
+            {{- $groupLastIndex := sub (len $flag.rollout.groups) 1 }}
+            {{- range $groupIndex, $group := $flag.rollout.groups }}
+            {{ $group | quote }}{{- if ne $groupIndex $groupLastIndex }},{{- end }}
+            {{- end }}
+          ]
+          {{- end }}
+        }
+        {{- end }}
+      }{{- if ne $index $lastIndex }},{{- end }}
+      {{- end }}
+    }
+  {{- end }}
+  
+  {{- if and (.Values.logging) (or (.Values.logging.config) (.Values.logging.level)) }}
+  logging.properties: |
+    {{- if .Values.logging.level }}
+    root.level={{ .Values.logging.level | upper }}
+    {{- end }}
+    {{- if .Values.logging.config }}
+    {{- range $logger, $level := .Values.logging.config }}
+    logger.{{ $logger }}.level={{ $level | upper }}
+    {{- end }}
+    {{- end }}
+    {{- if and (.Values.logging.appenders) (gt (len .Values.logging.appenders) 0) }}
+    {{- range .Values.logging.appenders }}
+    appender.{{ .name }}.type={{ .type }}
+    {{- if .file }}
+    appender.{{ .name }}.fileName={{ .file.name }}
+    {{- if .file.maxSize }}
+    appender.{{ .name }}.maxFileSize={{ .file.maxSize }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
