@@ -28,3 +28,6 @@ fmt:
 
 clean:
 	rm -f $(PROG) $(PROG)-*
+
+test/example: build
+	./$(OUTPUT) test-chart/
