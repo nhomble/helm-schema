@@ -1,0 +1,46 @@
+{{- $serviceConfig := .Values.service -}}
+{{- $accountInfo := .Values.accountInfo -}}
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.app.name }}-service
+  {{- if $accountInfo.labels }}
+  labels:
+    {{- range $key, $value := $accountInfo.labels }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+  {{- if $serviceConfig.annotations }}
+  annotations:
+    {{- if $serviceConfig.loadBalancer }}
+    service.beta.kubernetes.io/aws-load-balancer-type: {{ $serviceConfig.loadBalancer.type }}
+    {{- if $serviceConfig.loadBalancer.scheme }}
+    service.beta.kubernetes.io/aws-load-balancer-scheme: {{ $serviceConfig.loadBalancer.scheme }}
+    {{- end }}
+    {{- end }}
+    {{- range $key, $value := $serviceConfig.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ $serviceConfig.type | default "ClusterIP" }}
+  {{- if and (eq $serviceConfig.type "LoadBalancer") $serviceConfig.loadBalancerIP }}
+  loadBalancerIP: {{ $serviceConfig.loadBalancerIP }}
+  {{- end }}
+  ports:
+  - name: http
+    port: {{ $serviceConfig.port }}
+    targetPort: {{ $serviceConfig.targetPort | default $serviceConfig.port }}
+  {{- if $serviceConfig.additionalPorts }}
+  {{- range $serviceConfig.additionalPorts }}
+  - name: {{ .name }}
+    port: {{ .port }}
+    targetPort: {{ .targetPort | default .port }}
+    {{- if .protocol }}
+    protocol: {{ .protocol }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  selector:
+    app: {{ .Values.app.name }}

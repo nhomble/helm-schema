@@ -1,0 +1,76 @@
+{{- $accountInfo := .Values.accountInfo -}}
+{{- $database := .Values.database -}}
+{{- $config := .Values.app.config -}}
+{{- $features := .Values.features | default dict -}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  labels:
+    account: {{ $accountInfo.name }}
+    {{- if $accountInfo.tier }}
+    tier: {{ $accountInfo.tier }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.app.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name }}
+        account: {{ $accountInfo.name }}
+    spec:
+      containers:
+      - name: {{ .Values.app.name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+        - name: DATABASE_HOST
+          value: {{ $database.host | quote }}
+        - name: DATABASE_PORT
+          value: "{{ $database.port }}"
+        - name: DATABASE_NAME
+          value: {{ $database.name | quote }}
+        {{- if $database.ssl }}
+        - name: DATABASE_SSL
+          value: "{{ $database.ssl.enabled }}"
+        {{- if $database.ssl.cert }}
+        - name: DATABASE_SSL_CERT
+          value: {{ $database.ssl.cert.path | quote }}
+        {{- end }}
+        {{- end }}
+        - name: ACCOUNT_ID
+          value: {{ $accountInfo.id | quote }}
+        - name: INGRESS_HOST
+          value: {{ $accountInfo.ingressHost | quote }}
+        {{- if $accountInfo.customDomain }}
+        - name: CUSTOM_DOMAIN
+          value: {{ $accountInfo.customDomain.name | quote }}
+        {{- if $accountInfo.customDomain.ssl }}
+        - name: CUSTOM_DOMAIN_SSL
+          value: "{{ $accountInfo.customDomain.ssl.enabled }}"
+        {{- end }}
+        {{- end }}
+        - name: API_CONFIG
+          value: {{ $config.apiEndpoint | quote }}
+        - name: CACHE_TTL
+          value: "{{ $config.cache.ttl }}"
+        {{- if $config.logging }}
+        - name: LOG_LEVEL
+          value: {{ $config.logging.level | quote }}
+        {{- end }}
+        {{- if $features.experimental }}
+        - name: EXPERIMENTAL_FEATURES
+          value: "{{ $features.experimental.enabled }}"
+        {{- range $key, $value := $features.experimental.flags }}
+        - name: FEATURE_{{ $key | upper }}
+          value: "{{ $value }}"
+        {{- end }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.service.port }}
+        {{- if $config.monitoring }}
+        - containerPort: {{ $config.monitoring.port }}
+        {{- end }}

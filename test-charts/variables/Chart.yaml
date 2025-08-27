@@ -1,0 +1,5 @@
+apiVersion: v2
+name: variables-test
+description: A test chart with intermediate variables
+version: 0.1.0
+appVersion: "1.0"

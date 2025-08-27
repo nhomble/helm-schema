@@ -16,17 +16,28 @@ type ValuePath struct {
 
 // TemplateParser handles parsing Helm templates to extract .Values references
 type TemplateParser struct {
-	values map[string]*ValuePath
-	re     *regexp.Regexp
+	values    map[string]*ValuePath
+	variables map[string]string // Maps variable names to their .Values paths
+	re        *regexp.Regexp
+	varRe     *regexp.Regexp
+	varRefRe  *regexp.Regexp
 }
 
 // New creates a new template parser instance
 func New() *TemplateParser {
 	// Regex to match .Values.* expressions in Go templates
 	re := regexp.MustCompile(`\.Values\.([a-zA-Z][a-zA-Z0-9._\[\]]*?)(?:[^a-zA-Z0-9._\[\]]|$)`)
+	// Regex to match variable assignments: {{ $var := .Values.path }}
+	varRe := regexp.MustCompile(`\{\{-?\s*\$([a-zA-Z][a-zA-Z0-9_]*)\s*:=\s*\.Values\.([a-zA-Z][a-zA-Z0-9._\[\]]*?)(?:\s*[|}]|\s*-?\}\})`)
+	// Regex to match variable references: {{ $var.field }}
+	varRefRe := regexp.MustCompile(`\$([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z][a-zA-Z0-9._\[\]]*?)(?:[^a-zA-Z0-9._\[\]]|$)`)
+	
 	return &TemplateParser{
-		values: make(map[string]*ValuePath),
-		re:     re,
+		values:    make(map[string]*ValuePath),
+		variables: make(map[string]string),
+		re:        re,
+		varRe:     varRe,
+		varRefRe:  varRefRe,
 	}
 }
 
@@ -39,21 +50,14 @@ func (tp *TemplateParser) ParseTemplateFile(filePath string) error {
 
 	contentStr := string(content)
 
-	// Find all .Values.* references
-	matches := tp.re.FindAllStringSubmatch(contentStr, -1)
-	for _, match := range matches {
-		if len(match) > 1 {
-			path := match[1]
-			// Clean up the path (remove trailing punctuation)
-			path = strings.TrimRight(path, ".,;:!?")
+	// First pass: Find variable assignments {{ $var := .Values.path }}
+	tp.parseVariableAssignments(contentStr)
 
-			if path != "" {
-				// Check if this path is used in a range context
-				isRanged := tp.isUsedInRange(contentStr, path)
-				tp.addValuePathWithContext(path, isRanged)
-			}
-		}
-	}
+	// Second pass: Find direct .Values.* references
+	tp.parseDirectValueReferences(contentStr)
+
+	// Third pass: Find variable references {{ $var.field }} and resolve them
+	tp.parseVariableReferences(contentStr)
 
 	return nil
 }
@@ -63,10 +67,74 @@ func (tp *TemplateParser) GetValues() map[string]*ValuePath {
 	return tp.values
 }
 
+// parseVariableAssignments finds {{ $var := .Values.path }} patterns
+func (tp *TemplateParser) parseVariableAssignments(content string) {
+	matches := tp.varRe.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		if len(match) > 2 {
+			varName := match[1]
+			valuePath := match[2]
+			// Clean up the path
+			valuePath = strings.TrimRight(valuePath, ".,;:!?")
+			if valuePath != "" {
+				tp.variables[varName] = valuePath
+			}
+		}
+	}
+}
+
+// parseDirectValueReferences finds direct {{ .Values.path }} patterns  
+func (tp *TemplateParser) parseDirectValueReferences(content string) {
+	matches := tp.re.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		if len(match) > 1 {
+			path := match[1]
+			// Clean up the path (remove trailing punctuation)
+			path = strings.TrimRight(path, ".,;:!?")
+
+			if path != "" {
+				// Check if this path is used in a range context
+				isRanged := tp.isUsedInRange(content, path)
+				tp.addValuePathWithContext(path, isRanged)
+			}
+		}
+	}
+}
+
+// parseVariableReferences finds {{ $var.field }} patterns and resolves them
+func (tp *TemplateParser) parseVariableReferences(content string) {
+	matches := tp.varRefRe.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		if len(match) > 2 {
+			varName := match[1]
+			fieldPath := match[2]
+			// Clean up the field path
+			fieldPath = strings.TrimRight(fieldPath, ".,;:!?")
+
+			if basePath, exists := tp.variables[varName]; exists && fieldPath != "" {
+				// Construct the full path: basePath.fieldPath
+				fullPath := basePath + "." + fieldPath
+				
+				// Check if this variable reference is used in a range context
+				varRef := "$" + varName + "." + fieldPath
+				isRanged := tp.isVariableUsedInRange(content, varRef)
+				tp.addValuePathWithContext(fullPath, isRanged)
+			}
+		}
+	}
+}
+
 // isUsedInRange checks if a path appears in a Go template range statement
 func (tp *TemplateParser) isUsedInRange(content, path string) bool {
 	// Check if the path appears in a range statement
 	rangePattern := regexp.MustCompile(`\{\{-?\s*range\s+[^}]*\.Values\.` + regexp.QuoteMeta(path) + `[^}]*\}\}`)
+	return rangePattern.MatchString(content)
+}
+
+// isVariableUsedInRange checks if a variable reference appears in a range statement
+func (tp *TemplateParser) isVariableUsedInRange(content, varRef string) bool {
+	// Check if the variable reference appears in a range statement
+	rangePattern := regexp.MustCompile(`\{\{-?\s*range\s+[^}]*` + regexp.QuoteMeta(varRef) + `[^}]*\}\}`)
 	return rangePattern.MatchString(content)
 }
 
