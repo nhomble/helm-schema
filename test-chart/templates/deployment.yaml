@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  labels:
+    app: {{ .Values.app.name }}
+spec:
+  replicas: {{ .Values.app.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name }}
+    spec:
+      containers:
+      - name: {{ .Values.app.name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.port }}
+          protocol: TCP
+        env:
+        - name: DATABASE_HOST
+          value: {{ .Values.database.host }}
+        - name: DATABASE_PORT
+          value: "{{ .Values.database.port }}"
+        - name: DEBUG
+          value: "{{ .Values.app.debug }}"
+        {{- if .Values.app.enabled }}
+        - name: FEATURE_ENABLED
+          value: "true"
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        {{- if .Values.secrets }}
+        envFrom:
+        - secretRef:
+            name: {{ .Values.secrets.name }}
+        {{- end }}
