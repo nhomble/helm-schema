@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# Helm Schema Plugin
+# Wrapper script for helm-schema CLI tool
+
+set -e
+
+# Check if helm-schema is available on PATH
+if ! command -v helm-schema &> /dev/null; then
+    echo "Error: helm-schema binary not found on PATH" >&2
+    echo "" >&2
+    echo "Please ensure helm-schema is installed and available on your PATH." >&2
+    echo "" >&2
+    echo "Installation options:" >&2
+    echo "  1. Download from releases: https://github.com/your-org/helm-value-derive/releases" >&2
+    echo "  2. Build from source: go install github.com/your-org/helm-value-derive/cmd/helm-schema@latest" >&2
+    echo "  3. Use homebrew: brew install helm-schema" >&2
+    echo "" >&2
+    exit 1
+fi
+
+# Check for help flag
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    echo "Generate JSON Schema for Helm chart values"
+    echo ""
+    echo "Usage:"
+    echo "  helm schema <chart-path> [flags]"
+    echo ""
+    echo "Examples:"
+    echo "  helm schema ./my-chart                    # Generate schema for chart"
+    echo "  helm schema ./my-chart --no-subcharts    # Skip subchart parsing"
+    echo "  helm schema https://example.com/chart.tgz # Generate schema from remote chart"
+    echo ""
+    echo "Flags:"
+    helm-schema --help 2>&1 | grep -E "^\s*-"
+    exit 0
+fi
+
+# Handle special case where no arguments are provided
+if [[ $# -eq 0 ]]; then
+    echo "Error: chart path is required" >&2
+    echo "" >&2
+    echo "Usage: helm schema <chart-path> [flags]" >&2
+    echo "Run 'helm schema --help' for more information." >&2
+    exit 1
+fi
+
+# Check if first argument is a URL (remote chart)
+CHART_PATH="$1"
+if [[ "$CHART_PATH" =~ ^https?:// ]]; then
+    # Handle remote chart by downloading to temp directory
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf $TEMP_DIR" EXIT
+    
+    echo "Downloading remote chart..." >&2
+    if command -v curl &> /dev/null; then
+        curl -L -o "$TEMP_DIR/chart.tgz" "$CHART_PATH"
+    elif command -v wget &> /dev/null; then
+        wget -O "$TEMP_DIR/chart.tgz" "$CHART_PATH"
+    else
+        echo "Error: neither curl nor wget found. Cannot download remote chart." >&2
+        exit 1
+    fi
+    
+    # Extract the chart
+    cd "$TEMP_DIR"
+    tar -xzf chart.tgz
+    
+    # Find the extracted chart directory (should be the only directory)
+    EXTRACTED_CHART=$(find . -maxdepth 1 -type d ! -name . | head -n 1)
+    if [[ -z "$EXTRACTED_CHART" ]]; then
+        echo "Error: Could not find chart directory in downloaded archive" >&2
+        exit 1
+    fi
+    
+    # Update arguments to use extracted chart path
+    shift
+    set -- "$TEMP_DIR/$EXTRACTED_CHART" "$@"
+fi
+
+# Delegate to the actual helm-schema binary with all arguments
+exec helm-schema "$@"
