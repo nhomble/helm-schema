@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cache-config
+data:
+  redis-host: {{ .Values.redis.host | quote }}
+  redis-port: {{ .Values.redis.port | quote }}
+  cache-ttl: {{ .Values.cache.ttl | quote }}
+  cache-size: {{ .Values.cache.maxSize | quote }}

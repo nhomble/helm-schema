@@ -26,23 +26,23 @@ func TestParseBasicChart(t *testing.T) {
 
 	// Test expected basic paths are found
 	expectedPaths := map[string]string{
-		"app.name":       "string",
-		"app.debug":      "boolean",
-		"app.enabled":    "boolean",
-		"app.replicas":   "integer",
-		"image.repository": "string",
-		"image.tag":      "string",
-		"image.pullPolicy": "string",
-		"service.port":   "integer",
-		"service.type":   "string",
-		"database.host":  "string",
-		"database.port":  "integer",
-		"config.data":    "array", // Used in range
-		"config.properties": "array", // Used in range
-		"config":         "array", // Used in if condition
-		"secrets.name":   "string",
-		"secrets":        "string", // Used in if condition  
-		"resources":      "string",
+		"app.name":       "primitive",
+		"app.debug":      "primitive",
+		"app.enabled":    "primitive",
+		"app.replicas":   "primitive",
+		"image.repository": "primitive",
+		"image.tag":      "primitive",
+		"image.pullPolicy": "primitive",
+		"service.port":   "primitive",
+		"service.type":   "primitive",
+		"database.host":  "primitive",
+		"database.port":  "primitive",
+		"config.data":    "map", // Used in map range
+		"config.properties": "array", // Used in array range (takes precedence)  
+		"config":         "map", // Contains sub-properties, correctly inferred as map
+		"secrets.name":   "primitive",
+		"secrets":        "primitive", // Used in if condition  
+		"resources":      "primitive", // Used with toYaml but not detected as map in pipeline
 	}
 
 	for expectedPath, expectedType := range expectedPaths {
@@ -83,38 +83,38 @@ func TestParseComplexConditionals(t *testing.T) {
 
 	// Test some key complex conditional paths
 	expectedComplexPaths := map[string]string{
-		"rollout.enabled":           "boolean",
-		"rollout.revision":          "string",
-		"rollout.strategy":          "string",
-		"rollout.maxSurge":          "string",
-		"rollout.maxUnavailable":    "string",
-		"app.environment":           "string",
-		"global.env":                "string",
-		"scaling.enabled":           "boolean",
-		"scaling.replicas":          "integer",
-		"security.runAsNonRoot":     "string",
-		"security.runAsUser":        "string",
+		"rollout.enabled":           "primitive",
+		"rollout.revision":          "primitive",
+		"rollout.strategy":          "primitive",
+		"rollout.maxSurge":          "primitive",
+		"rollout.maxUnavailable":    "primitive",
+		"app.environment":           "primitive",
+		"global.env":                "map", // Common object pattern
+		"scaling.enabled":           "primitive",
+		"scaling.replicas":          "primitive",
+		"security.runAsNonRoot":     "primitive",
+		"security.runAsUser":        "primitive",
 		"security.capabilities.drop": "array",
 		"security.capabilities.add":  "array",
-		"monitoring.prometheus.scrape": "string",
-		"monitoring.prometheus.port": "integer",
-		"metrics.enabled":           "boolean",
-		"metrics.path":              "string",
-		"features.experimental.enabled": "boolean",
-		"features.experimental.flags": "string",
-		"features.flags":            "array",
-		"database.config":           "string",
-		"database.migrations.enabled": "boolean",
+		"monitoring.prometheus.scrape": "map", // Multi-level path suggests object
+		"monitoring.prometheus.port": "map", // Multi-level path suggests object
+		"metrics.enabled":           "primitive",
+		"metrics.path":              "primitive",
+		"features.experimental.enabled": "map", // Multi-level path suggests object
+		"features.experimental.flags": "map", // Multi-level path suggests object
+		"features.flags":            "map",
+		"database.config":           "map", // "config" pattern suggests object
+		"database.migrations.enabled": "map", // Multi-level path suggests object
 		"database.migrations.scripts": "array",
-		"external.database.connectionString": "string",
+		"external.database.connectionString": "map", // Multi-level path suggests object
 		"service.additionalPorts":   "array",
 		"service.external.ips":      "array",
-		"loadBalancer.enabled":      "boolean",
-		"loadBalancer.type":         "string",
-		"loadBalancer.internal":     "string",
-		"loadBalancer.subnets":      "string",
-		"logging.level":             "string",
-		"logging.config":            "array",
+		"loadBalancer.enabled":      "primitive",
+		"loadBalancer.type":         "primitive",
+		"loadBalancer.internal":     "primitive",
+		"loadBalancer.subnets":      "primitive",
+		"logging.level":             "primitive",
+		"logging.config":            "map",
 		"logging.appenders":         "array",
 	}
 
@@ -134,37 +134,68 @@ func TestParseComplexConditionals(t *testing.T) {
 	t.Logf("Successfully parsed %d value paths from complex chart", len(values))
 }
 
-func TestTypeInference(t *testing.T) {
+func TestPipelineHints(t *testing.T) {
 	tests := []struct {
+		name     string
+		content  string
 		path     string
-		isRanged bool
 		expected string
 	}{
-		{"app.enabled", false, "boolean"},
-		{"app.debug", false, "boolean"},
-		{"service.port", false, "integer"},
-		{"app.replicas", false, "integer"},
-		{"timeout", false, "integer"},
-		{"count", false, "integer"},
-		{"app.name", false, "string"},
-		{"items[]", false, "array"},
-		{"config.data", true, "array"},
-		{"features.flags", true, "array"},
+		{
+			name:     "array syntax",
+			content:  `{{ .Values.items[] }}`,
+			path:     "items[]",
+			expected: "array",
+		},
+		{
+			name:     "map iteration",
+			content:  `{{ range $key, $value := .Values.config }}`,
+			path:     "config",
+			expected: "map",
+		},
+		{
+			name:     "array iteration",
+			content:  `{{ range .Values.items }}`,
+			path:     "items",
+			expected: "array",
+		},
+		{
+			name:     "map operations",
+			content:  `{{ keys .Values.config }}`,
+			path:     "config",
+			expected: "map",
+		},
+		{
+			name:     "array operations",
+			content:  `{{ len .Values.items }}`,
+			path:     "items",
+			expected: "array",
+		},
+		{
+			name:     "primitive default",
+			content:  `{{ .Values.app.name }}`,
+			path:     "app.name",
+			expected: "primitive",
+		},
 	}
 
 	for _, test := range tests {
-		result := inferTypeWithContext(test.path, test.isRanged)
-		if result != test.expected {
-			t.Errorf("inferTypeWithContext(%s, %t) = %s, expected %s", 
-				test.path, test.isRanged, result, test.expected)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			result := inferTypeFromHints(test.content, test.path)
+			if result != test.expected {
+				t.Errorf("inferTypeFromHints(%s, %s) = %s, expected %s", 
+					test.content, test.path, result, test.expected)
+			}
+		})
 	}
 }
 
-func TestRangeDetection(t *testing.T) {
-	parser := New()
-
+func TestHintExtraction(t *testing.T) {
 	testContent := `
+{{ range $key, $value := .Values.config }}
+  {{ $key }}: {{ $value }}
+{{ end }}
+
 {{ range .Values.items }}
   - name: {{ .name }}
 {{ end }}
@@ -173,25 +204,36 @@ func TestRangeDetection(t *testing.T) {
 enabled: true
 {{ end }}
 
-{{- range .Values.config.properties }}
-{{ .key }}: {{ .value }}
-{{- end }}
+{{ keys .Values.metadata }}
+{{ len .Values.items }}
 `
 
 	tests := []struct {
-		path     string
-		expected bool
+		path               string
+		expectedMapIter    bool
+		expectedArrayIter  bool
+		expectedMapOps     bool
+		expectedArrayOps   bool
 	}{
-		{"items", true},
-		{"config.properties", true},
-		{"enabled", false},
-		{"nonexistent", false},
+		{"config", true, false, false, false},
+		{"items", false, true, false, true},
+		{"metadata", false, false, true, false},
+		{"enabled", false, false, false, false},
 	}
 
 	for _, test := range tests {
-		result := parser.isUsedInRange(testContent, test.path)
-		if result != test.expected {
-			t.Errorf("isUsedInRange(%s) = %t, expected %t", test.path, result, test.expected)
+		hints := extractPipelineHints(testContent, test.path)
+		if hints.hasMapIteration != test.expectedMapIter {
+			t.Errorf("Path %s: hasMapIteration = %t, expected %t", test.path, hints.hasMapIteration, test.expectedMapIter)
+		}
+		if hints.hasArrayIteration != test.expectedArrayIter {
+			t.Errorf("Path %s: hasArrayIteration = %t, expected %t", test.path, hints.hasArrayIteration, test.expectedArrayIter)
+		}
+		if hints.hasMapOperations != test.expectedMapOps {
+			t.Errorf("Path %s: hasMapOperations = %t, expected %t", test.path, hints.hasMapOperations, test.expectedMapOps)
+		}
+		if hints.hasArrayOperations != test.expectedArrayOps {
+			t.Errorf("Path %s: hasArrayOperations = %t, expected %t", test.path, hints.hasArrayOperations, test.expectedArrayOps)
 		}
 	}
 }

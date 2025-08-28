@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.name }}-middleware
+spec:
+  ports:
+  - port: {{ .Values.port }}
+  selector:
+    app: middleware
+  # Uses cache configuration from nested dependency  
+  sessionAffinity: {{ .Values.cache.sessionAffinity | default "None" }}
+  # Reference cache subchart values directly
+  annotations:
+    cache.redis.host: {{ .Values.cache.redis.host | quote }}
+    cache.ttl: {{ .Values.cache.cache.ttl | quote }}

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: middleware
+description: Middleware subchart with its own dependencies
+type: application
+version: 1.0.0
+appVersion: "1.0"
+
+dependencies:
+  - name: cache
+    version: "2.0.0"
+    # Nested dependency - subchart of subchart

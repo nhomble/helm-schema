@@ -1,0 +1,11 @@
+apiVersion: v2
+name: nested-app
+description: App with nested subchart dependencies
+type: application
+version: 0.1.0
+appVersion: "1.0"
+
+dependencies:
+  - name: middleware
+    version: "1.0.0"
+    # Local dependency that has its own dependencies
