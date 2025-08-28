@@ -17,7 +17,7 @@ ifeq ($(GOARCH),$(shell go env GOARCH))
 endif
 endif
 
-.PHONY: clean test fmt test/example plugin/uninstall
+.PHONY: clean test fmt test/example plugin/install plugin/uninstall
 
 # install is not idempotent
 .IGNORE: plugin/install plugin/uninstall
