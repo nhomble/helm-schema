@@ -12,7 +12,7 @@ dependencies:
   - name: redis
     version: "2.0.0"
     repository: "file://./subcharts/redis"
-  - name: nginx
-    version: "1.0.0"
+  - name: common
+    version: "2.x.x"
     repository: "https://charts.bitnami.com/bitnami"
-    # Remote dependency - should be ignored for local processing
+    # Remote dependency - Bitnami common library chart

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"gopkg.in/yaml.v3"
@@ -120,4 +121,69 @@ func FindLocalSubcharts(chartPath string) ([]*Dependency, error) {
 	}
 	
 	return localDeps, nil
+}
+
+// EnsureHelmAvailable checks if helm is available in PATH
+func EnsureHelmAvailable() error {
+	_, err := exec.LookPath("helm")
+	if err != nil {
+		return fmt.Errorf("helm not found in PATH: %w", err)
+	}
+	return nil
+}
+
+// BuildDependencies runs 'helm dependency build' to download remote dependencies
+func BuildDependencies(chartPath string) error {
+	cmd := exec.Command("helm", "dependency", "build")
+	cmd.Dir = chartPath
+	
+	// Capture output for error reporting
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("helm dependency build failed: %w\nOutput: %s", err, string(output))
+	}
+	
+	return nil
+}
+
+// HasRemoteDependencies checks if the chart has any remote dependencies
+func HasRemoteDependencies(chartPath string) (bool, error) {
+	metadata, err := ParseChartMetadata(chartPath)
+	if err != nil {
+		return false, err
+	}
+	
+	for _, dep := range metadata.Dependencies {
+		if !dep.IsLocalDependency() {
+			return true, nil
+		}
+	}
+	
+	return false, nil
+}
+
+// FindAllSubcharts discovers all subchart dependencies (local and remote after build)
+func FindAllSubcharts(chartPath string) ([]*Dependency, error) {
+	metadata, err := ParseChartMetadata(chartPath)
+	if err != nil {
+		return nil, err
+	}
+	
+	var allDeps []*Dependency
+	for i := range metadata.Dependencies {
+		dep := &metadata.Dependencies[i]
+		allDeps = append(allDeps, dep)
+	}
+	
+	return allDeps, nil
+}
+
+// GetSubchartPath returns the filesystem path for any dependency (after helm dependency build)
+func (d *Dependency) GetSubchartPath(parentChartPath string) string {
+	if d.IsLocalDependency() {
+		return d.GetLocalSubchartPath(parentChartPath)
+	}
+	
+	// Remote dependencies are downloaded to charts/ directory by helm dependency build
+	return filepath.Join(parentChartPath, "charts", d.Name)
 }

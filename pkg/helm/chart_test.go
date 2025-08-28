@@ -130,7 +130,7 @@ func TestParseChartMetadata(t *testing.T) {
 	expectedDeps := map[string]string{
 		"database": "",
 		"redis":    "file://./subcharts/redis",
-		"nginx":    "https://charts.bitnami.com/bitnami",
+		"common":   "https://charts.bitnami.com/bitnami",
 	}
 	
 	for _, dep := range metadata.Dependencies {
@@ -169,8 +169,8 @@ func TestFindLocalSubcharts(t *testing.T) {
 	if !localNames["redis"] {
 		t.Error("Expected to find 'redis' as local dependency")
 	}
-	if localNames["nginx"] {
-		t.Error("'nginx' should not be identified as local dependency")
+	if localNames["common"] {
+		t.Error("'common' should not be identified as local dependency")
 	}
 }
 
@@ -203,4 +203,71 @@ func TestDependencyPaths(t *testing.T) {
 			t.Errorf("Subchart %s at %s is invalid: %v", dep.Name, subchartPath, err)
 		}
 	}
+}
+
+func TestEnsureHelmAvailable(t *testing.T) {
+	err := EnsureHelmAvailable()
+	if err != nil {
+		t.Skipf("Skipping test - helm not available: %v", err)
+	}
+	t.Log("Helm is available on system PATH")
+}
+
+func TestHasRemoteDependencies(t *testing.T) {
+	// Test chart with remote dependencies
+	chartPath := "../../test-charts/with-subcharts"
+	
+	hasRemote, err := HasRemoteDependencies(chartPath)
+	if err != nil {
+		t.Fatalf("Failed to check remote dependencies: %v", err)
+	}
+	
+	if !hasRemote {
+		t.Error("Expected chart to have remote dependencies")
+	}
+	
+	// Test chart without dependencies (basic chart)
+	basicChartPath := "../../test-charts/basic"
+	hasRemoteBasic, err := HasRemoteDependencies(basicChartPath)
+	if err != nil {
+		t.Fatalf("Failed to check remote dependencies for basic chart: %v", err)
+	}
+	
+	if hasRemoteBasic {
+		t.Error("Expected basic chart to have no remote dependencies")
+	}
+}
+
+func TestFindAllSubcharts(t *testing.T) {
+	chartPath := "../../test-charts/with-subcharts"
+	
+	allDeps, err := FindAllSubcharts(chartPath)
+	if err != nil {
+		t.Fatalf("Failed to find all subcharts: %v", err)
+	}
+	
+	if len(allDeps) != 3 {
+		t.Errorf("Expected 3 total dependencies, got %d", len(allDeps))
+	}
+	
+	// Count local vs remote
+	localCount := 0
+	remoteCount := 0
+	for _, dep := range allDeps {
+		if dep.IsLocalDependency() {
+			localCount++
+		} else {
+			remoteCount++
+		}
+	}
+	
+	if localCount != 2 {
+		t.Errorf("Expected 2 local dependencies, got %d", localCount)
+	}
+	
+	if remoteCount != 1 {
+		t.Errorf("Expected 1 remote dependency, got %d", remoteCount)
+	}
+	
+	t.Logf("Found %d local and %d remote dependencies", localCount, remoteCount)
 }

@@ -1,9 +1,12 @@
 package parser
 
 import (
+	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"helm-schema/pkg/helm"
 )
 
@@ -12,7 +15,7 @@ type ValuePath struct {
 	Path     string
 	Type     string
 	Required bool
-	Default  interface{}
+	Default  any
 }
 
 // TemplateParser handles parsing Helm templates to extract .Values references
@@ -77,10 +80,15 @@ func New() *TemplateParser {
 func (tp *TemplateParser) ParseTemplateFile(filePath string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read template file %s: %w", filePath, err)
 	}
 
 	contentStr := string(content)
+	
+	// Skip empty files
+	if strings.TrimSpace(contentStr) == "" {
+		return nil
+	}
 
 	// First pass: Find variable assignments {{ $var := .Values.path }}
 	tp.parseVariableAssignments(contentStr)
@@ -94,8 +102,13 @@ func (tp *TemplateParser) ParseTemplateFile(filePath string) error {
 	return nil
 }
 
-// ParseChart processes an entire chart including its local subcharts
+// ParseChart processes an entire chart including its subcharts
 func (tp *TemplateParser) ParseChart(chartPath string) error {
+	return tp.ParseChartWithOptions(chartPath, true)
+}
+
+// ParseChartWithOptions processes a chart with configurable subchart handling
+func (tp *TemplateParser) ParseChartWithOptions(chartPath string, includeSubcharts bool) error {
 	// Parse main chart templates
 	templateFiles, err := helm.FindTemplates(chartPath)
 	if err != nil {
@@ -108,25 +121,47 @@ func (tp *TemplateParser) ParseChart(chartPath string) error {
 		}
 	}
 	
-	// Parse local subcharts recursively
-	localDeps, err := helm.FindLocalSubcharts(chartPath)
+	if !includeSubcharts {
+		return nil
+	}
+	
+	// Check if we need to build remote dependencies
+	hasRemote, err := helm.HasRemoteDependencies(chartPath)
 	if err != nil {
 		return err
 	}
 	
-	for _, dep := range localDeps {
-		subchartPath := dep.GetLocalSubchartPath(chartPath)
+	if hasRemote {
+		// Ensure helm is available
+		if err := helm.EnsureHelmAvailable(); err != nil {
+			return err
+		}
+		
+		// Build dependencies to download remote charts
+		if err := helm.BuildDependencies(chartPath); err != nil {
+			return err
+		}
+	}
+	
+	// Parse all subcharts recursively (local and remote after build)
+	allDeps, err := helm.FindAllSubcharts(chartPath)
+	if err != nil {
+		return err
+	}
+	
+	for _, dep := range allDeps {
+		subchartPath := dep.GetSubchartPath(chartPath)
 		
 		// Validate subchart exists
 		if err := helm.ValidateChartDirectory(subchartPath); err != nil {
-			// Log warning but continue - subchart might not be built yet
+			// Continue if subchart not available - might be conditional or optional
 			continue
 		}
 		
 		// Create parser for subchart
 		subchartParser := New()
-		if err := subchartParser.ParseChart(subchartPath); err != nil {
-			return err
+		if err := subchartParser.ParseChartWithOptions(subchartPath, true); err != nil {
+			return fmt.Errorf("failed to parse subchart %s at %s: %w", dep.Name, subchartPath, err)
 		}
 		
 		tp.subcharts[dep.Name] = subchartParser
@@ -149,12 +184,16 @@ func (tp *TemplateParser) GetSubcharts() map[string]*TemplateParser {
 func (tp *TemplateParser) GetAllValues() map[string]*ValuePath {
 	allValues := make(map[string]*ValuePath)
 	
-	// Add main chart values
-	for path, valuePath := range tp.values {
-		allValues[path] = valuePath
+	// Add main chart values using maps.Copy for efficiency
+	maps.Copy(allValues, tp.values)
+	
+	// Add subchart values with proper prefixing (using concurrent processing for large charts)
+	if len(tp.subcharts) > 5 {
+		// Use parallel processing for many subcharts
+		return tp.getAllValuesParallel()
 	}
 	
-	// Add subchart values with proper prefixing
+	// Sequential processing for smaller charts
 	for subchartName, subchartParser := range tp.subcharts {
 		subchartValues := subchartParser.GetAllValues()
 		for path, valuePath := range subchartValues {
@@ -170,6 +209,39 @@ func (tp *TemplateParser) GetAllValues() map[string]*ValuePath {
 		}
 	}
 	
+	return allValues
+}
+
+// getAllValuesParallel processes subcharts concurrently for better performance
+func (tp *TemplateParser) getAllValuesParallel() map[string]*ValuePath {
+	allValues := make(map[string]*ValuePath)
+	maps.Copy(allValues, tp.values)
+	
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	
+	for subchartName, subchartParser := range tp.subcharts {
+		wg.Add(1)
+		go func(name string, parser *TemplateParser) {
+			defer wg.Done()
+			
+			subchartValues := parser.GetAllValues()
+			
+			mu.Lock()
+			defer mu.Unlock()
+			for path, valuePath := range subchartValues {
+				prefixedPath := name + "." + path
+				allValues[prefixedPath] = &ValuePath{
+					Path:     prefixedPath,
+					Type:     valuePath.Type,
+					Required: valuePath.Required,
+					Default:  valuePath.Default,
+				}
+			}
+		}(subchartName, subchartParser)
+	}
+	
+	wg.Wait()
 	return allValues
 }
 
@@ -254,8 +326,55 @@ func inferTypeFromHints(content, path string) string {
 		return "array"
 	}
 
+	// Additional heuristics based on path structure and naming
+	if hasMapStructureHints(path) {
+		return "map"
+	}
+
+	if hasArrayStructureHints(path) {
+		return "array"
+	}
+
 	// Default to primitive for leaf nodes
 	return "primitive"
+}
+
+// hasMapStructureHints checks if the path structure suggests a map/object
+func hasMapStructureHints(path string) bool {
+	// Paths ending with common object identifiers
+	mapPatterns := []string{
+		"config", "settings", "metadata", "labels", "annotations",
+		"env", "resources", "limits", "requests", "nodeSelector",
+		"tolerations", "affinity", "securityContext", "ingress",
+	}
+	
+	pathLower := strings.ToLower(path)
+	for _, pattern := range mapPatterns {
+		if strings.HasSuffix(pathLower, pattern) {
+			return true
+		}
+	}
+	
+	// Multi-level paths often indicate objects
+	return strings.Count(path, ".") >= 2
+}
+
+// hasArrayStructureHints checks if the path structure suggests an array
+func hasArrayStructureHints(path string) bool {
+	// Paths ending with common array identifiers
+	arrayPatterns := []string{
+		"items", "list", "array", "volumes", "ports", "hosts",
+		"endpoints", "rules", "paths", "containers", "initContainers",
+	}
+	
+	pathLower := strings.ToLower(path)
+	for _, pattern := range arrayPatterns {
+		if strings.HasSuffix(pathLower, pattern) {
+			return true
+		}
+	}
+	
+	return false
 }
 
 // PipelineHints captures type hints from template pipeline usage

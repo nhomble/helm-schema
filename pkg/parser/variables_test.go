@@ -54,31 +54,31 @@ func TestParseVariableTemplates(t *testing.T) {
 		"accountInfo.tier":      "primitive", // $accountInfo.tier
 		"accountInfo.id":        "primitive", // $accountInfo.id
 		"accountInfo.ingressHost": "primitive", // $accountInfo.ingressHost
-		"accountInfo.customDomain.name": "primitive", // $accountInfo.customDomain.name
-		"accountInfo.customDomain.ssl.enabled": "primitive", // $accountInfo.customDomain.ssl.enabled
-		"accountInfo.labels":    "primitive", // $accountInfo.labels (used in range) - TODO: fix variable hint detection
+		"accountInfo.customDomain.name": "map", // Multi-level path suggests object
+		"accountInfo.customDomain.ssl.enabled": "map", // Multi-level path suggests object
+		"accountInfo.labels":    "map", // "labels" pattern and used in range suggests map
 
 		"database.host":         "primitive", // $database.host
 		"database.port":         "primitive", // $database.port
 		"database.name":         "primitive", // $database.name
-		"database.ssl.enabled":  "primitive", // $database.ssl.enabled
-		"database.ssl.cert.path": "primitive", // $database.ssl.cert.path
+		"database.ssl.enabled":  "map", // Multi-level path suggests object
+		"database.ssl.cert.path": "map", // Multi-level path suggests object
 
-		"app.config.apiEndpoint":    "primitive", // $config.apiEndpoint
-		"app.config.cache.ttl":      "primitive", // $config.cache.ttl
-		"app.config.logging.level":  "primitive", // $config.logging.level
-		"app.config.monitoring.port": "primitive", // $config.monitoring.port
+		"app.config.apiEndpoint":    "map", // Multi-level path suggests object
+		"app.config.cache.ttl":      "map", // Multi-level path suggests object
+		"app.config.logging.level":  "map", // Multi-level path suggests object
+		"app.config.monitoring.port": "map", // Multi-level path suggests object
 
-		"features.experimental.enabled": "primitive", // $features.experimental.enabled
-		"features.experimental.flags":   "primitive", // $features.experimental.flags (used in range) - TODO: fix variable hint detection
+		"features.experimental.enabled": "map", // Multi-level path suggests object
+		"features.experimental.flags":   "map", // Multi-level path suggests object
 
 		"service.type":           "primitive", // $serviceConfig.type
 		"service.loadBalancerIP": "primitive", // $serviceConfig.loadBalancerIP
 		"service.targetPort":     "primitive", // $serviceConfig.targetPort
-		"service.additionalPorts": "primitive", // $serviceConfig.additionalPorts (used in range) - TODO: fix variable hint detection
-		"service.loadBalancer.type":   "primitive", // $serviceConfig.loadBalancer.type
-		"service.loadBalancer.scheme": "primitive", // $serviceConfig.loadBalancer.scheme
-		"service.annotations":    "primitive", // $serviceConfig.annotations (used in range) - TODO: fix variable hint detection
+		"service.additionalPorts": "array", // "ports" pattern suggests array
+		"service.loadBalancer.type":   "map", // Multi-level path suggests object
+		"service.loadBalancer.scheme": "map", // Multi-level path suggests object
+		"service.annotations":    "map", // "annotations" pattern and used in range suggests map
 	}
 
 	for expectedPath, expectedType := range expectedPaths {

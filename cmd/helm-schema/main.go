@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,54 +12,79 @@ import (
 	"helm-schema/pkg/schema"
 )
 
-func usage() string {
-	return fmt.Sprintf("Usage: %s <helm-chart-path>", os.Args[0])
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage: %s [flags] <helm-chart-path>\n", os.Args[0])
+	flag.PrintDefaults()
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "%s\n", usage())
+	var noSubcharts = flag.Bool("no-subcharts", false, "Skip parsing subcharts")
+	flag.Usage = usage
+	flag.Parse()
+
+	if flag.NArg() != 1 {
+		usage()
 		os.Exit(1)
 	}
 
-	chartPath := os.Args[1]
+	chartPath := flag.Arg(0)
+	includeSubcharts := !*noSubcharts
 
-	// Convert to absolute path
-	absPath, err := filepath.Abs(chartPath)
+	schemaJSON, err := chartToSchema(chartPath, includeSubcharts)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving path: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Validate chart directory
-	if err := helm.ValidateChartDirectory(absPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Parse chart including subcharts
-	p := parser.New()
-	if err := p.ParseChart(absPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing chart: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Println(schemaJSON)
+}
 
-	// Get all values including subchart values
-	allValues := p.GetAllValues()
-	if len(allValues) == 0 {
-		fmt.Fprintf(os.Stderr, "No value paths found in chart %s\n", absPath)
-		os.Exit(1)
-	}
-
-	// Generate JSON schema from parsed values (including subcharts)
-	jsonSchema := schema.Generate(allValues)
-
-	// Output JSON schema to stdout
-	output, err := json.MarshalIndent(jsonSchema, "", "  ")
+// chartToSchema converts a Helm chart directory to a JSON schema string
+func chartToSchema(chartPath string, includeSubcharts bool) (string, error) {
+	// Convert to absolute path
+	absPath, err := filepath.Abs(chartPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating JSON: %v\n", err)
-		os.Exit(1)
+		return "", fmt.Errorf("resolving path: %w", err)
 	}
 
-	fmt.Println(string(output))
+	// Validate chart directory
+	if err := helm.ValidateChartDirectory(absPath); err != nil {
+		return "", err
+	}
+
+	// Parse chart including subcharts (if enabled)
+	p := parser.New()
+	if err := p.ParseChartWithOptions(absPath, includeSubcharts); err != nil {
+		return "", fmt.Errorf("parsing chart: %w", err)
+	}
+
+	// Step 1: Generate individual schemas for main chart and each subchart
+	mainSchema, subchartSchemas := schema.GenerateChartSchemas(p)
+
+	// Validate we have schemas to work with
+	totalValues := 0
+	if mainProps, ok := mainSchema.Schema["properties"].(map[string]any); ok {
+		totalValues = len(mainProps)
+	}
+	
+	for _, subchart := range subchartSchemas {
+		if props, ok := subchart.Schema["properties"].(map[string]any); ok {
+			totalValues += len(props)
+		}
+	}
+
+	if totalValues == 0 {
+		return "", fmt.Errorf("no value paths found in chart %s - ensure templates use .Values references", absPath)
+	}
+
+	// Step 2: Aggregate individual schemas into final schema
+	finalSchema := schema.MergeSchemas(mainSchema, subchartSchemas)
+
+	// Step 3: Convert to JSON string
+	output, err := json.MarshalIndent(finalSchema, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("generating JSON: %w", err)
+	}
+
+	return string(output), nil
 }
