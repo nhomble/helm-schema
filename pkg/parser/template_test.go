@@ -43,7 +43,7 @@ func TestParseBasicChart(t *testing.T) {
 		"database":          "object", // Intermediate path
 		"config.data":       "unknown",
 		"config.properties": "unknown", // Range usage doesn't have [] in path
-		"config":            "object", // Intermediate path
+		"config":            "object",  // Intermediate path
 		"secrets.name":      "unknown",
 		"secrets":           "object", // Intermediate path
 		"resources":         "unknown",
@@ -89,7 +89,7 @@ func TestParseComplexConditionals(t *testing.T) {
 	expectedComplexPaths := map[string]string{
 		// Leaf values are all unknown
 		"rollout.enabled":                    "unknown",
-		"rollout.revision":                   "unknown", 
+		"rollout.revision":                   "unknown",
 		"rollout.strategy":                   "unknown",
 		"rollout.maxSurge":                   "unknown",
 		"rollout.maxUnavailable":             "unknown",
@@ -122,21 +122,21 @@ func TestParseComplexConditionals(t *testing.T) {
 		"logging.config":                     "unknown",
 		"logging.appenders":                  "unknown", // No explicit [] in path
 		// Intermediate paths are objects
-		"rollout":                           "object",
-		"security":                          "object",
-		"security.capabilities":             "object",
-		"monitoring":                        "object",
-		"monitoring.prometheus":             "object",
-		"features":                          "object",
-		"features.experimental":             "object",
-		"database":                          "object",
-		"database.migrations":               "object",
-		"external":                          "object",
-		"external.database":                 "object",
-		"service":                           "object",
-		"service.external":                  "object",
-		"loadBalancer":                      "object",
-		"logging":                           "object",
+		"rollout":               "object",
+		"security":              "object",
+		"security.capabilities": "object",
+		"monitoring":            "object",
+		"monitoring.prometheus": "object",
+		"features":              "object",
+		"features.experimental": "object",
+		"database":              "object",
+		"database.migrations":   "object",
+		"external":              "object",
+		"external.database":     "object",
+		"service":               "object",
+		"service.external":      "object",
+		"loadBalancer":          "object",
+		"logging":               "object",
 	}
 
 	for expectedPath, expectedType := range expectedComplexPaths {
@@ -174,21 +174,21 @@ func TestParseDefaultValues(t *testing.T) {
 
 	// Expected paths and their types - all leaf values are unknown, intermediate paths are objects
 	expectedPaths := map[string]string{
-		"app.name":           "unknown",
-		"app.replicas":       "unknown",
-		"app.debug":          "unknown", 
-		"app.enabled":        "unknown",
-		"app.vendor.host":    "unknown",
-		"app.vendor":         "object", // Intermediate path
-		"app":                "object", // Intermediate path
-		"image.repository":   "unknown",
-		"image.tag":          "unknown",
-		"image":              "object", // Intermediate path
-		"service.port":       "unknown",
-		"service":            "object", // Intermediate path
-		"database.host":      "unknown",
-		"database.port":      "unknown",
-		"database":           "object", // Intermediate path
+		"app.name":         "unknown",
+		"app.replicas":     "unknown",
+		"app.debug":        "unknown",
+		"app.enabled":      "unknown",
+		"app.vendor.host":  "unknown",
+		"app.vendor":       "object", // Intermediate path
+		"app":              "object", // Intermediate path
+		"image.repository": "unknown",
+		"image.tag":        "unknown",
+		"image":            "object", // Intermediate path
+		"service.port":     "unknown",
+		"service":          "object", // Intermediate path
+		"database.host":    "unknown",
+		"database.port":    "unknown",
+		"database":         "object", // Intermediate path
 	}
 
 	for expectedPath, expectedType := range expectedPaths {
@@ -250,4 +250,3 @@ func TestSimpleTypeInference(t *testing.T) {
 		})
 	}
 }
-
