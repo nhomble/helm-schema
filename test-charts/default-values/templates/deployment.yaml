@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name | default "myapp" }}
+spec:
+  replicas: {{ .Values.app.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name | default "myapp" }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name | default "myapp" }}
+    spec:
+      containers:
+      - name: {{ .Values.app.name | default "myapp" }}
+        image: {{ .Values.image.repository | default "nginx" }}:{{ .Values.image.tag | default "latest" }}
+        ports:
+        - containerPort: {{ .Values.service.port | default 80 }}
+        env:
+        - name: DEBUG
+          value: {{ .Values.app.debug | default false | quote }}
+        - name: DATABASE_HOST  
+          value: {{ .Values.database.host | default "localhost" }}
+        - name: DATABASE_PORT
+          value: {{ .Values.database.port | default 5432 | quote }}
+        - name: VENDOR_HOST
+          value: {{ .Values.app.vendor.host | default "spec.nodeName" }}
+        {{- if .Values.app.enabled | default true }}
+        - name: ENABLED
+          value: "true"
+        {{- end }}

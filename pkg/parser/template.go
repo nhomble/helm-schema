@@ -326,6 +326,11 @@ func inferTypeFromHints(content, path string) string {
 		return "array"
 	}
 
+	// Check for primitive default values (should take precedence over structural hints)
+	if hasPrimitiveDefaultValue(content, path) {
+		return "primitive"
+	}
+
 	// Additional heuristics based on path structure and naming
 	if hasMapStructureHints(path) {
 		return "map"
@@ -337,6 +342,35 @@ func inferTypeFromHints(content, path string) string {
 
 	// Default to primitive for leaf nodes
 	return "primitive"
+}
+
+// hasPrimitiveDefaultValue checks if a path has a primitive default value
+func hasPrimitiveDefaultValue(content, path string) bool {
+	// Escape dots in the path for regex
+	escapedPath := strings.ReplaceAll(path, ".", "\\.")
+	
+	// Pattern to match .Values.path | default <primitive_value>
+	// Note: We exclude .Values references as defaults since those aren't primitives
+	patterns := []string{
+		// String defaults: | default "value"
+		`\.Values\.` + escapedPath + `\s*\|\s*default\s+"[^"]*"`,
+		// String defaults: | default 'value'  
+		`\.Values\.` + escapedPath + `\s*\|\s*default\s+'[^']*'`,
+		// Numeric defaults: | default 123
+		`\.Values\.` + escapedPath + `\s*\|\s*default\s+\d+`,
+		// Boolean defaults: | default true/false
+		`\.Values\.` + escapedPath + `\s*\|\s*default\s+(?:true|false)`,
+		// Unquoted simple string defaults: | default value (but not .Values.*)
+		`\.Values\.` + escapedPath + `\s*\|\s*default\s+(?!\.Values\.)[a-zA-Z][a-zA-Z0-9_]*`,
+	}
+	
+	for _, pattern := range patterns {
+		if matched, _ := regexp.MatchString(pattern, content); matched {
+			return true
+		}
+	}
+	
+	return false
 }
 
 // hasMapStructureHints checks if the path structure suggests a map/object

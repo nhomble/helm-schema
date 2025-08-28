@@ -96,15 +96,15 @@ func TestParseComplexConditionals(t *testing.T) {
 		"security.runAsUser":                 "primitive",
 		"security.capabilities.drop":         "array",
 		"security.capabilities.add":          "array",
-		"monitoring.prometheus.scrape":       "map", // Multi-level path suggests object
-		"monitoring.prometheus.port":         "map", // Multi-level path suggests object
+		"monitoring.prometheus.scrape":       "primitive", // Has primitive default: | default true
+		"monitoring.prometheus.port":         "map", // Default is .Values reference, not primitive
 		"metrics.enabled":                    "primitive",
 		"metrics.path":                       "primitive",
-		"features.experimental.enabled":      "map", // Multi-level path suggests object
+		"features.experimental.enabled":      "primitive", // Has primitive default: | default false
 		"features.experimental.flags":        "map", // Multi-level path suggests object
 		"features.flags":                     "map",
 		"database.config":                    "map", // "config" pattern suggests object
-		"database.migrations.enabled":        "map", // Multi-level path suggests object
+		"database.migrations.enabled":        "primitive", // Has primitive default: | default false
 		"database.migrations.scripts":        "array",
 		"external.database.connectionString": "map", // Multi-level path suggests object
 		"service.additionalPorts":            "array",
@@ -132,6 +132,58 @@ func TestParseComplexConditionals(t *testing.T) {
 	}
 
 	t.Logf("Successfully parsed %d value paths from complex chart", len(values))
+}
+
+func TestParseDefaultValues(t *testing.T) {
+	parser := New()
+	chartPath := "../../test-charts/default-values"
+
+	// Parse the default values test chart
+	templateFiles := []string{
+		filepath.Join(chartPath, "templates/deployment.yaml"),
+	}
+
+	for _, file := range templateFiles {
+		if err := parser.ParseTemplateFile(file); err != nil {
+			t.Fatalf("Failed to parse %s: %v", file, err)
+		}
+	}
+
+	values := parser.GetValues()
+
+	// Expected paths and their types - primitive default values should override structural hints
+	expectedPaths := map[string]string{
+		"app.name":           "primitive",
+		"app.replicas":       "primitive",
+		"app.debug":          "primitive", 
+		"app.enabled":        "primitive",
+		"app.vendor.host":    "primitive", // Should be primitive due to default "spec.nodeName"
+		"image.repository":   "primitive",
+		"image.tag":          "primitive",
+		"service.port":       "primitive",
+		"database.host":      "primitive",
+		"database.port":      "primitive",
+	}
+
+	for expectedPath, expectedType := range expectedPaths {
+		if valuePath, exists := values[expectedPath]; !exists {
+			t.Errorf("Expected path %s not found", expectedPath)
+		} else if valuePath.Type != expectedType {
+			t.Errorf("Path %s has type %s, expected %s", expectedPath, valuePath.Type, expectedType)
+		}
+	}
+
+	// Log all found paths for debugging
+	for path := range values {
+		t.Logf("Found path: %s (%s)", path, values[path].Type)
+	}
+
+	// Check that we found the expected number of paths
+	if len(values) != len(expectedPaths) {
+		t.Errorf("Expected %d paths, found %d", len(expectedPaths), len(values))
+	}
+
+	t.Logf("Successfully parsed %d value paths with default values", len(values))
 }
 
 func TestPipelineHints(t *testing.T) {
@@ -175,6 +227,24 @@ func TestPipelineHints(t *testing.T) {
 			name:     "primitive default",
 			content:  `{{ .Values.app.name }}`,
 			path:     "app.name",
+			expected: "primitive",
+		},
+		{
+			name:     "string default value",
+			content:  `{{ .Values.app.host | default "localhost" }}`,
+			path:     "app.host",
+			expected: "primitive",
+		},
+		{
+			name:     "integer default value",
+			content:  `{{ .Values.app.port | default 8080 }}`,
+			path:     "app.port", 
+			expected: "primitive",
+		},
+		{
+			name:     "boolean default value",
+			content:  `{{ .Values.app.enabled | default true }}`,
+			path:     "app.enabled",
 			expected: "primitive",
 		},
 	}
