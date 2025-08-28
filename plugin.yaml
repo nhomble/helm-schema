@@ -27,6 +27,6 @@ platformCommand:
     command: "$HELM_PLUGIN_DIR/helm/helm-schema"
 platformHooks:
   install:
-    - command: make build
+    - command: make build -C $HELM_PLUGIN_DIR
   delete:
-    - command: make clean
+    - command: make clean -C $HELM_PLUGIN_DIR
