@@ -42,7 +42,7 @@ func TestParseBasicChart(t *testing.T) {
 		"config":            "map",   // Contains sub-properties, correctly inferred as map
 		"secrets.name":      "primitive",
 		"secrets":           "primitive", // Used in if condition
-		"resources":         "primitive", // Used with toYaml but not detected as map in pipeline
+		"resources":         "map", // "resources" pattern suggests map object
 	}
 
 	for expectedPath, expectedType := range expectedPaths {
