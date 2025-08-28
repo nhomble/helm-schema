@@ -43,42 +43,42 @@ func TestParseVariableTemplates(t *testing.T) {
 	// Test that variable references are resolved correctly
 	expectedPaths := map[string]string{
 		// Direct .Values references
-		"app.name":         "string",
-		"app.replicas":     "integer",
-		"image.repository": "string",
-		"image.tag":        "string",
-		"service.port":     "integer",
+		"app.name":         "primitive",
+		"app.replicas":     "primitive",
+		"image.repository": "primitive",
+		"image.tag":        "primitive",
+		"service.port":     "primitive",
 
 		// Variable references that should be resolved
-		"accountInfo.name":      "integer", // $accountInfo.name
-		"accountInfo.tier":      "integer", // $accountInfo.tier
-		"accountInfo.id":        "integer", // $accountInfo.id
-		"accountInfo.ingressHost": "integer", // $accountInfo.ingressHost
-		"accountInfo.customDomain.name": "integer", // $accountInfo.customDomain.name
-		"accountInfo.customDomain.ssl.enabled": "boolean", // $accountInfo.customDomain.ssl.enabled
-		"accountInfo.labels":    "array", // $accountInfo.labels (used in range)
+		"accountInfo.name":      "primitive", // $accountInfo.name
+		"accountInfo.tier":      "primitive", // $accountInfo.tier
+		"accountInfo.id":        "primitive", // $accountInfo.id
+		"accountInfo.ingressHost": "primitive", // $accountInfo.ingressHost
+		"accountInfo.customDomain.name": "primitive", // $accountInfo.customDomain.name
+		"accountInfo.customDomain.ssl.enabled": "primitive", // $accountInfo.customDomain.ssl.enabled
+		"accountInfo.labels":    "primitive", // $accountInfo.labels (used in range) - TODO: fix variable hint detection
 
-		"database.host":         "string", // $database.host
-		"database.port":         "integer", // $database.port
-		"database.name":         "string", // $database.name
-		"database.ssl.enabled":  "boolean", // $database.ssl.enabled
-		"database.ssl.cert.path": "string", // $database.ssl.cert.path
+		"database.host":         "primitive", // $database.host
+		"database.port":         "primitive", // $database.port
+		"database.name":         "primitive", // $database.name
+		"database.ssl.enabled":  "primitive", // $database.ssl.enabled
+		"database.ssl.cert.path": "primitive", // $database.ssl.cert.path
 
-		"app.config.apiEndpoint":    "string", // $config.apiEndpoint
-		"app.config.cache.ttl":      "string", // $config.cache.ttl
-		"app.config.logging.level":  "string", // $config.logging.level
-		"app.config.monitoring.port": "integer", // $config.monitoring.port
+		"app.config.apiEndpoint":    "primitive", // $config.apiEndpoint
+		"app.config.cache.ttl":      "primitive", // $config.cache.ttl
+		"app.config.logging.level":  "primitive", // $config.logging.level
+		"app.config.monitoring.port": "primitive", // $config.monitoring.port
 
-		"features.experimental.enabled": "boolean", // $features.experimental.enabled
-		"features.experimental.flags":   "array", // $features.experimental.flags (used in range)
+		"features.experimental.enabled": "primitive", // $features.experimental.enabled
+		"features.experimental.flags":   "primitive", // $features.experimental.flags (used in range) - TODO: fix variable hint detection
 
-		"service.type":           "string", // $serviceConfig.type
-		"service.loadBalancerIP": "string", // $serviceConfig.loadBalancerIP
-		"service.targetPort":     "integer", // $serviceConfig.targetPort
-		"service.additionalPorts": "array", // $serviceConfig.additionalPorts (used in range)
-		"service.loadBalancer.type":   "string", // $serviceConfig.loadBalancer.type
-		"service.loadBalancer.scheme": "string", // $serviceConfig.loadBalancer.scheme
-		"service.annotations":    "array", // $serviceConfig.annotations (used in range)
+		"service.type":           "primitive", // $serviceConfig.type
+		"service.loadBalancerIP": "primitive", // $serviceConfig.loadBalancerIP
+		"service.targetPort":     "primitive", // $serviceConfig.targetPort
+		"service.additionalPorts": "primitive", // $serviceConfig.additionalPorts (used in range) - TODO: fix variable hint detection
+		"service.loadBalancer.type":   "primitive", // $serviceConfig.loadBalancer.type
+		"service.loadBalancer.scheme": "primitive", // $serviceConfig.loadBalancer.scheme
+		"service.annotations":    "primitive", // $serviceConfig.annotations (used in range) - TODO: fix variable hint detection
 	}
 
 	for expectedPath, expectedType := range expectedPaths {

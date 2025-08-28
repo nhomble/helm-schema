@@ -33,7 +33,7 @@ const (
 
 	// Assignment operator with whitespace
 	assign = `\s*:=\s*`
-	
+
 	// Value path: identifier with optional .identifier or [digits] repeated
 	// Examples: app, app.name, config.database.host, items[0].name
 	valuePath = identifier + `(?:\.` + identifier + `|\[\d+\])*?`
@@ -117,8 +117,7 @@ func (tp *TemplateParser) parseDirectValueReferences(content string) {
 		if len(match) > 1 {
 			path := tp.normalizePath(match[1])
 			if path != "" {
-				isRanged := tp.isUsedInRange(content, path)
-				tp.addValuePathWithContext(path, isRanged)
+				tp.addValuePathWithHints(content, path)
 			}
 		}
 	}
@@ -134,38 +133,20 @@ func (tp *TemplateParser) parseVariableReferences(content string) {
 
 			if basePath, exists := tp.variables[varName]; exists && fieldPath != "" {
 				fullPath := basePath + "." + fieldPath
-				varRef := "$" + varName + "." + fieldPath
-				isRanged := tp.isVariableUsedInRange(content, varRef)
-				tp.addValuePathWithContext(fullPath, isRanged)
+				tp.addValuePathWithHints(content, fullPath)
 			}
 		}
 	}
 }
 
-// isUsedInRange checks if a path appears in a Go template range statement
-func (tp *TemplateParser) isUsedInRange(content, path string) bool {
-	return tp.isPatternInRange(content, `\.Values\.`+regexp.QuoteMeta(path))
-}
-
-// isVariableUsedInRange checks if a variable reference appears in a range statement
-func (tp *TemplateParser) isVariableUsedInRange(content, varRef string) bool {
-	return tp.isPatternInRange(content, regexp.QuoteMeta(varRef))
-}
-
-// isPatternInRange checks if a pattern appears in any range statement
-func (tp *TemplateParser) isPatternInRange(content, pattern string) bool {
-	rangePattern := regexp.MustCompile(pipelineOpen + `range\s+[^}]*` + pattern + `[^}]*` + pipelineClose)
-	return rangePattern.MatchString(content)
-}
-
-// addValuePathWithContext adds a value path with contextual type inference
-func (tp *TemplateParser) addValuePathWithContext(path string, isRanged bool) {
+// addValuePathWithHints adds a value path with pipeline hint-based type inference
+func (tp *TemplateParser) addValuePathWithHints(content, path string) {
 	normalizedPath := tp.normalizePath(path)
 
 	if _, exists := tp.values[normalizedPath]; !exists {
 		tp.values[normalizedPath] = &ValuePath{
 			Path:     normalizedPath,
-			Type:     inferTypeWithContext(path, isRanged),
+			Type:     inferTypeFromHints(content, path),
 			Required: false,
 		}
 	}
@@ -179,28 +160,157 @@ func (tp *TemplateParser) normalizePath(path string) string {
 	return regexp.MustCompile(`\[\d+\]`).ReplaceAllString(path, "[]")
 }
 
-// inferTypeWithContext performs heuristic type inference based on path patterns and context
-func inferTypeWithContext(path string, isRanged bool) string {
-	// Simple type inference based on common patterns
-	lower := strings.ToLower(path)
-
+// inferTypeFromHints performs heuristic type inference based on pipeline usage hints
+func inferTypeFromHints(content, path string) string {
 	if strings.Contains(path, "[]") {
 		return "array"
 	}
 
-	// If used in a range, it's likely an array or object
-	if isRanged {
+	// Analyze pipeline hints throughout the content
+	hints := extractPipelineHints(content, path)
+
+	if hints.hasMapIteration || hints.hasMapOperations {
+		return "map"
+	}
+
+	if hints.hasArrayIteration || hints.hasArrayOperations {
 		return "array"
 	}
 
-	if strings.HasSuffix(lower, "enabled") || strings.HasSuffix(lower, "debug") {
-		return "boolean"
-	}
-	if strings.Contains(lower, "port") || strings.Contains(lower, "count") ||
-		strings.Contains(lower, "replicas") || strings.Contains(lower, "timeout") {
-		return "integer"
+	// Default to primitive for leaf nodes
+	return "primitive"
+}
+
+// PipelineHints captures type hints from template pipeline usage
+type PipelineHints struct {
+	hasArrayIteration  bool // {{ range .Values.path }}
+	hasMapIteration    bool // {{ range $k, $v := .Values.path }}
+	hasArrayOperations bool // {{ len .Values.path }}, {{ index .Values.path 0 }}
+	hasMapOperations   bool // {{ keys .Values.path }}, {{ hasKey .Values.path "key" }}
+}
+
+// extractPipelineHints analyzes template content for type hints using token-based parsing
+func extractPipelineHints(content, path string) PipelineHints {
+	hints := PipelineHints{}
+
+	// Extract all pipeline expressions {{ ... }}
+	pipelineRegex := regexp.MustCompile(pipelineOpen + `([^}]+)` + pipelineClose)
+	pipelines := pipelineRegex.FindAllStringSubmatch(content, -1)
+
+	targetPath := ".Values." + path
+
+	for _, pipeline := range pipelines {
+		if len(pipeline) < 2 {
+			continue
+		}
+
+		tokens := tokenizePipeline(pipeline[1])
+		analyzePipelineTokens(tokens, targetPath, &hints)
 	}
 
-	// Default to string for leaf nodes (this is the most common case)
-	return "string"
+	return hints
+}
+
+// tokenizePipeline splits a pipeline expression into tokens
+func tokenizePipeline(pipeline string) []string {
+	// Split on whitespace and special characters, but preserve quoted strings
+	var tokens []string
+	current := ""
+	inQuotes := false
+
+	for i, r := range pipeline {
+		switch {
+		case r == '"' || r == '\'':
+			inQuotes = !inQuotes
+			current += string(r)
+		// Handle whitespace and special characters
+		case !inQuotes && (r == ' ' || r == '\t' || r == '\n' || r == ',' || r == ':' || r == '=' || r == '|'):
+			if current != "" {
+				tokens = append(tokens, strings.TrimSpace(current))
+				current = ""
+			}
+			// Add special characters as separate tokens if they're meaningful
+			if r == ',' || r == '|' || (r == ':' && i < len(pipeline)-1 && pipeline[i+1] == '=') {
+				tokens = append(tokens, string(r))
+			} else if r == '=' && i > 0 && pipeline[i-1] == ':' {
+				// Combine := as a single token
+				if len(tokens) > 0 && tokens[len(tokens)-1] == ":" {
+					tokens[len(tokens)-1] = ":="
+				}
+			}
+		default:
+			current += string(r)
+		}
+
+		// Handle end of string
+		if i == len(pipeline)-1 && current != "" {
+			tokens = append(tokens, strings.TrimSpace(current))
+		}
+	}
+
+	return tokens
+}
+
+// analyzePipelineTokens examines tokens for type hints
+func analyzePipelineTokens(tokens []string, targetPath string, hints *PipelineHints) {
+	for i, token := range tokens {
+		// Look for exact match of our target path in the tokens
+		if token != targetPath {
+			continue
+		}
+
+		// For range statements, analyze the entire pattern
+		rangeIndex := findTokenIndex(tokens, "range")
+		targetIndex := i
+
+		if rangeIndex != -1 && rangeIndex < targetIndex {
+			// Check if this is map iteration by looking for comma between range and :=
+			assignIndex := findTokenIndex(tokens, ":=")
+			if assignIndex != -1 && assignIndex < targetIndex {
+				// Look for comma between range and :=
+				for j := rangeIndex; j < assignIndex; j++ {
+					if tokens[j] == "," {
+						hints.hasMapIteration = true
+						return
+					}
+				}
+			}
+			// If we reached here and there was a range, it's array iteration
+			hints.hasArrayIteration = true
+		}
+
+		// Check preceding tokens for function calls
+		if i > 0 {
+			switch tokens[i-1] {
+			case "keys", "values", "hasKey":
+				hints.hasMapOperations = true
+			case "len", "index", "append":
+				hints.hasArrayOperations = true
+			}
+		}
+
+		// Check following tokens for pipeline operations
+		if i < len(tokens)-1 {
+			nextToken := tokens[i+1]
+			if nextToken == "|" && i < len(tokens)-2 {
+				pipeFunc := tokens[i+2]
+				switch pipeFunc {
+				case "keys", "values", "hasKey":
+					hints.hasMapOperations = true
+				case "len", "first", "last":
+					hints.hasArrayOperations = true
+				}
+			}
+		}
+	}
+}
+
+// findTokenIndex finds the index of a token in a slice
+func findTokenIndex(tokens []string, target string) int {
+	for i, token := range tokens {
+		if token == target {
+			return i
+		}
+	}
+	return -1
 }
