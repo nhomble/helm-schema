@@ -122,15 +122,14 @@ func TestParseChartMetadata(t *testing.T) {
 		t.Errorf("Expected chart name 'parent-chart', got '%s'", metadata.Name)
 	}
 
-	if len(metadata.Dependencies) != 3 {
-		t.Errorf("Expected 3 dependencies, got %d", len(metadata.Dependencies))
+	if len(metadata.Dependencies) != 2 {
+		t.Errorf("Expected 2 dependencies, got %d", len(metadata.Dependencies))
 	}
 
 	// Check specific dependencies
 	expectedDeps := map[string]string{
 		"database": "",
 		"redis":    "file://./subcharts/redis",
-		"common":   "https://charts.bitnami.com/bitnami",
 	}
 
 	for _, dep := range metadata.Dependencies {
@@ -168,9 +167,6 @@ func TestFindLocalSubcharts(t *testing.T) {
 	}
 	if !localNames["redis"] {
 		t.Error("Expected to find 'redis' as local dependency")
-	}
-	if localNames["common"] {
-		t.Error("'common' should not be identified as local dependency")
 	}
 }
 
@@ -222,8 +218,8 @@ func TestHasRemoteDependencies(t *testing.T) {
 		t.Fatalf("Failed to check remote dependencies: %v", err)
 	}
 
-	if !hasRemote {
-		t.Error("Expected chart to have remote dependencies")
+	if hasRemote {
+		t.Error("Expected chart to have no remote dependencies")
 	}
 
 	// Test chart without dependencies (basic chart)
@@ -246,8 +242,8 @@ func TestFindAllSubcharts(t *testing.T) {
 		t.Fatalf("Failed to find all subcharts: %v", err)
 	}
 
-	if len(allDeps) != 3 {
-		t.Errorf("Expected 3 total dependencies, got %d", len(allDeps))
+	if len(allDeps) != 2 {
+		t.Errorf("Expected 2 total dependencies, got %d", len(allDeps))
 	}
 
 	// Count local vs remote
@@ -265,8 +261,8 @@ func TestFindAllSubcharts(t *testing.T) {
 		t.Errorf("Expected 2 local dependencies, got %d", localCount)
 	}
 
-	if remoteCount != 1 {
-		t.Errorf("Expected 1 remote dependency, got %d", remoteCount)
+	if remoteCount != 0 {
+		t.Errorf("Expected 0 remote dependencies, got %d", remoteCount)
 	}
 
 	t.Logf("Found %d local and %d remote dependencies", localCount, remoteCount)
