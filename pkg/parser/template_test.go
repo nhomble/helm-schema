@@ -26,23 +26,27 @@ func TestParseBasicChart(t *testing.T) {
 
 	// Test expected basic paths are found
 	expectedPaths := map[string]string{
-		"app.name":          "primitive",
-		"app.debug":         "primitive",
-		"app.enabled":       "primitive",
-		"app.replicas":      "primitive",
-		"image.repository":  "primitive",
-		"image.tag":         "primitive",
-		"image.pullPolicy":  "primitive",
-		"service.port":      "primitive",
-		"service.type":      "primitive",
-		"database.host":     "primitive",
-		"database.port":     "primitive",
-		"config.data":       "map",   // Used in map range
-		"config.properties": "array", // Used in array range (takes precedence)
-		"config":            "map",   // Contains sub-properties, correctly inferred as map
-		"secrets.name":      "primitive",
-		"secrets":           "primitive", // Used in if condition
-		"resources":         "map",       // "resources" pattern suggests map object
+		"app.name":          "unknown",
+		"app.debug":         "unknown",
+		"app.enabled":       "unknown",
+		"app.replicas":      "unknown",
+		"app":               "object", // Intermediate path
+		"image.repository":  "unknown",
+		"image.tag":         "unknown",
+		"image.pullPolicy":  "unknown",
+		"image":             "object", // Intermediate path
+		"service.port":      "unknown",
+		"service.type":      "unknown",
+		"service":           "object", // Intermediate path
+		"database.host":     "unknown",
+		"database.port":     "unknown",
+		"database":          "object", // Intermediate path
+		"config.data":       "unknown",
+		"config.properties": "unknown", // Range usage doesn't have [] in path
+		"config":            "object", // Intermediate path
+		"secrets.name":      "unknown",
+		"secrets":           "object", // Intermediate path
+		"resources":         "unknown",
 	}
 
 	for expectedPath, expectedType := range expectedPaths {
@@ -81,41 +85,58 @@ func TestParseComplexConditionals(t *testing.T) {
 
 	values := parser.GetValues()
 
-	// Test some key complex conditional paths
+	// Test some key complex conditional paths - simplified to focus on keyset correctness
 	expectedComplexPaths := map[string]string{
-		"rollout.enabled":                    "primitive",
-		"rollout.revision":                   "primitive",
-		"rollout.strategy":                   "primitive",
-		"rollout.maxSurge":                   "primitive",
-		"rollout.maxUnavailable":             "primitive",
-		"app.environment":                    "primitive",
-		"global.env":                         "map", // Common object pattern
-		"scaling.enabled":                    "primitive",
-		"scaling.replicas":                   "primitive",
-		"security.runAsNonRoot":              "primitive",
-		"security.runAsUser":                 "primitive",
-		"security.capabilities.drop":         "array",
-		"security.capabilities.add":          "array",
-		"monitoring.prometheus.scrape":       "primitive", // Has primitive default: | default true
-		"monitoring.prometheus.port":         "map", // Default is .Values reference, not primitive
-		"metrics.enabled":                    "primitive",
-		"metrics.path":                       "primitive",
-		"features.experimental.enabled":      "primitive", // Has primitive default: | default false
-		"features.experimental.flags":        "map", // Multi-level path suggests object
-		"features.flags":                     "map",
-		"database.config":                    "map", // "config" pattern suggests object
-		"database.migrations.enabled":        "primitive", // Has primitive default: | default false
-		"database.migrations.scripts":        "array",
-		"external.database.connectionString": "map", // Multi-level path suggests object
-		"service.additionalPorts":            "array",
-		"service.external.ips":               "array",
-		"loadBalancer.enabled":               "primitive",
-		"loadBalancer.type":                  "primitive",
-		"loadBalancer.internal":              "primitive",
-		"loadBalancer.subnets":               "primitive",
-		"logging.level":                      "primitive",
-		"logging.config":                     "map",
-		"logging.appenders":                  "array",
+		// Leaf values are all unknown
+		"rollout.enabled":                    "unknown",
+		"rollout.revision":                   "unknown", 
+		"rollout.strategy":                   "unknown",
+		"rollout.maxSurge":                   "unknown",
+		"rollout.maxUnavailable":             "unknown",
+		"app.environment":                    "unknown",
+		"global.env":                         "unknown",
+		"scaling.enabled":                    "unknown",
+		"scaling.replicas":                   "unknown",
+		"security.runAsNonRoot":              "unknown",
+		"security.runAsUser":                 "unknown",
+		"security.capabilities.drop":         "unknown", // No explicit [] in path
+		"security.capabilities.add":          "unknown", // No explicit [] in path
+		"monitoring.prometheus.scrape":       "unknown",
+		"monitoring.prometheus.port":         "unknown",
+		"metrics.enabled":                    "unknown",
+		"metrics.path":                       "unknown",
+		"features.experimental.enabled":      "unknown",
+		"features.experimental.flags":        "unknown",
+		"features.flags":                     "unknown",
+		"database.config":                    "unknown",
+		"database.migrations.enabled":        "unknown",
+		"database.migrations.scripts":        "unknown", // No explicit [] in path
+		"external.database.connectionString": "unknown",
+		"service.additionalPorts":            "unknown", // No explicit [] in path
+		"service.external.ips":               "unknown", // No explicit [] in path
+		"loadBalancer.enabled":               "unknown",
+		"loadBalancer.type":                  "unknown",
+		"loadBalancer.internal":              "unknown",
+		"loadBalancer.subnets":               "unknown",
+		"logging.level":                      "unknown",
+		"logging.config":                     "unknown",
+		"logging.appenders":                  "unknown", // No explicit [] in path
+		// Intermediate paths are objects
+		"rollout":                           "object",
+		"security":                          "object",
+		"security.capabilities":             "object",
+		"monitoring":                        "object",
+		"monitoring.prometheus":             "object",
+		"features":                          "object",
+		"features.experimental":             "object",
+		"database":                          "object",
+		"database.migrations":               "object",
+		"external":                          "object",
+		"external.database":                 "object",
+		"service":                           "object",
+		"service.external":                  "object",
+		"loadBalancer":                      "object",
+		"logging":                           "object",
 	}
 
 	for expectedPath, expectedType := range expectedComplexPaths {
@@ -151,18 +172,23 @@ func TestParseDefaultValues(t *testing.T) {
 
 	values := parser.GetValues()
 
-	// Expected paths and their types - primitive default values should override structural hints
+	// Expected paths and their types - all leaf values are unknown, intermediate paths are objects
 	expectedPaths := map[string]string{
-		"app.name":           "primitive",
-		"app.replicas":       "primitive",
-		"app.debug":          "primitive", 
-		"app.enabled":        "primitive",
-		"app.vendor.host":    "primitive", // Should be primitive due to default "spec.nodeName"
-		"image.repository":   "primitive",
-		"image.tag":          "primitive",
-		"service.port":       "primitive",
-		"database.host":      "primitive",
-		"database.port":      "primitive",
+		"app.name":           "unknown",
+		"app.replicas":       "unknown",
+		"app.debug":          "unknown", 
+		"app.enabled":        "unknown",
+		"app.vendor.host":    "unknown",
+		"app.vendor":         "object", // Intermediate path
+		"app":                "object", // Intermediate path
+		"image.repository":   "unknown",
+		"image.tag":          "unknown",
+		"image":              "object", // Intermediate path
+		"service.port":       "unknown",
+		"service":            "object", // Intermediate path
+		"database.host":      "unknown",
+		"database.port":      "unknown",
+		"database":           "object", // Intermediate path
 	}
 
 	for expectedPath, expectedType := range expectedPaths {
@@ -186,124 +212,42 @@ func TestParseDefaultValues(t *testing.T) {
 	t.Logf("Successfully parsed %d value paths with default values", len(values))
 }
 
-func TestPipelineHints(t *testing.T) {
+func TestSimpleTypeInference(t *testing.T) {
 	tests := []struct {
 		name     string
-		content  string
 		path     string
 		expected string
 	}{
 		{
 			name:     "array syntax",
-			content:  `{{ .Values.items[] }}`,
 			path:     "items[]",
 			expected: "array",
 		},
 		{
-			name:     "map iteration",
-			content:  `{{ range $key, $value := .Values.config }}`,
-			path:     "config",
-			expected: "map",
+			name:     "nested path",
+			path:     "app.config.host",
+			expected: "unknown",
 		},
 		{
-			name:     "array iteration",
-			content:  `{{ range .Values.items }}`,
-			path:     "items",
-			expected: "array",
+			name:     "simple path",
+			path:     "enabled",
+			expected: "unknown",
 		},
 		{
-			name:     "map operations",
-			content:  `{{ keys .Values.config }}`,
-			path:     "config",
-			expected: "map",
-		},
-		{
-			name:     "array operations",
-			content:  `{{ len .Values.items }}`,
-			path:     "items",
-			expected: "array",
-		},
-		{
-			name:     "primitive default",
-			content:  `{{ .Values.app.name }}`,
-			path:     "app.name",
-			expected: "primitive",
-		},
-		{
-			name:     "string default value",
-			content:  `{{ .Values.app.host | default "localhost" }}`,
-			path:     "app.host",
-			expected: "primitive",
-		},
-		{
-			name:     "integer default value",
-			content:  `{{ .Values.app.port | default 8080 }}`,
-			path:     "app.port", 
-			expected: "primitive",
-		},
-		{
-			name:     "boolean default value",
-			content:  `{{ .Values.app.enabled | default true }}`,
-			path:     "app.enabled",
-			expected: "primitive",
+			name:     "array with nested path",
+			path:     "items[].name",
+			expected: "unknown",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := inferTypeFromHints(test.content, test.path)
+			result := inferTypeFromHints(test.path)
 			if result != test.expected {
-				t.Errorf("inferTypeFromHints(%s, %s) = %s, expected %s",
-					test.content, test.path, result, test.expected)
+				t.Errorf("inferTypeFromHints(%s) = %s, expected %s",
+					test.path, result, test.expected)
 			}
 		})
 	}
 }
 
-func TestHintExtraction(t *testing.T) {
-	testContent := `
-{{ range $key, $value := .Values.config }}
-  {{ $key }}: {{ $value }}
-{{ end }}
-
-{{ range .Values.items }}
-  - name: {{ .name }}
-{{ end }}
-
-{{ if .Values.enabled }}
-enabled: true
-{{ end }}
-
-{{ keys .Values.metadata }}
-{{ len .Values.items }}
-`
-
-	tests := []struct {
-		path              string
-		expectedMapIter   bool
-		expectedArrayIter bool
-		expectedMapOps    bool
-		expectedArrayOps  bool
-	}{
-		{"config", true, false, false, false},
-		{"items", false, true, false, true},
-		{"metadata", false, false, true, false},
-		{"enabled", false, false, false, false},
-	}
-
-	for _, test := range tests {
-		hints := extractPipelineHints(testContent, test.path)
-		if hints.hasMapIteration != test.expectedMapIter {
-			t.Errorf("Path %s: hasMapIteration = %t, expected %t", test.path, hints.hasMapIteration, test.expectedMapIter)
-		}
-		if hints.hasArrayIteration != test.expectedArrayIter {
-			t.Errorf("Path %s: hasArrayIteration = %t, expected %t", test.path, hints.hasArrayIteration, test.expectedArrayIter)
-		}
-		if hints.hasMapOperations != test.expectedMapOps {
-			t.Errorf("Path %s: hasMapOperations = %t, expected %t", test.path, hints.hasMapOperations, test.expectedMapOps)
-		}
-		if hints.hasArrayOperations != test.expectedArrayOps {
-			t.Errorf("Path %s: hasArrayOperations = %t, expected %t", test.path, hints.hasArrayOperations, test.expectedArrayOps)
-		}
-	}
-}

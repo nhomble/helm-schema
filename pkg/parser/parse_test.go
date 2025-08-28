@@ -15,13 +15,13 @@ func TestParseVariableReferences(t *testing.T) {
 			name:     "single variable reference",
 			content:  `{{ $database.host }}`,
 			vars:     map[string]string{"database": "database"},
-			expected: []string{"database.host"},
+			expected: []string{"database.host", "database"},
 		},
 		{
 			name:     "nested field access",
 			content:  `{{ $config.ssl.cert.path }}`,
 			vars:     map[string]string{"config": "app.config"},
-			expected: []string{"app.config.ssl.cert.path"},
+			expected: []string{"app.config.ssl.cert.path", "app", "app.config", "app.config.ssl", "app.config.ssl.cert"},
 		},
 		{
 			name:     "undefined variable ignored",
@@ -33,13 +33,13 @@ func TestParseVariableReferences(t *testing.T) {
 			name:     "variable with pipeline",
 			content:  `{{ $database.host | quote }}`,
 			vars:     map[string]string{"database": "database"},
-			expected: []string{"database.host"},
+			expected: []string{"database.host", "database"},
 		},
 		{
 			name:     "variable in quotes",
 			content:  `value: "{{ $config.port }}"`,
 			vars:     map[string]string{"config": "app.config"},
-			expected: []string{"app.config.port"},
+			expected: []string{"app.config.port", "app", "app.config"},
 		},
 	}
 
@@ -157,32 +157,32 @@ func TestParseDirectValueReferences(t *testing.T) {
 		{
 			name:     "simple value reference",
 			content:  `{{ .Values.app.name }}`,
-			expected: []string{"app.name"},
+			expected: []string{"app.name", "app"},
 		},
 		{
 			name:     "nested path reference",
 			content:  `{{ .Values.database.ssl.enabled }}`,
-			expected: []string{"database.ssl.enabled"},
+			expected: []string{"database.ssl.enabled", "database", "database.ssl"},
 		},
 		{
 			name:     "value reference with pipeline",
 			content:  `{{ .Values.app.replicas | default 1 }}`,
-			expected: []string{"app.replicas"},
+			expected: []string{"app.replicas", "app"},
 		},
 		{
 			name:     "value reference in quotes",
 			content:  `value: "{{ .Values.database.port }}"`,
-			expected: []string{"database.port"},
+			expected: []string{"database.port", "database"},
 		},
 		{
 			name:     "value reference in conditional",
 			content:  `{{- if .Values.app.enabled }}`,
-			expected: []string{"app.enabled"},
+			expected: []string{"app.enabled", "app"},
 		},
 		{
 			name:     "value reference with template comment",
 			content:  `{{ .Values.app.name }} {{/* Application name */}}`,
-			expected: []string{"app.name"},
+			expected: []string{"app.name", "app"},
 		},
 	}
 

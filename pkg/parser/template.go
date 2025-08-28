@@ -266,7 +266,7 @@ func (tp *TemplateParser) parseDirectValueReferences(content string) {
 		if len(match) > 1 {
 			path := tp.normalizePath(match[1])
 			if path != "" {
-				tp.addValuePathWithHints(content, path)
+				tp.addValuePathWithHints(path)
 			}
 		}
 	}
@@ -282,23 +282,28 @@ func (tp *TemplateParser) parseVariableReferences(content string) {
 
 			if basePath, exists := tp.variables[varName]; exists && fieldPath != "" {
 				fullPath := basePath + "." + fieldPath
-				tp.addValuePathWithHints(content, fullPath)
+				tp.addValuePathWithHints(fullPath)
 			}
 		}
 	}
 }
 
-// addValuePathWithHints adds a value path with pipeline hint-based type inference
-func (tp *TemplateParser) addValuePathWithHints(content, path string) {
+// addValuePathWithHints adds a value path with simple structural type inference
+func (tp *TemplateParser) addValuePathWithHints(path string) {
 	normalizedPath := tp.normalizePath(path)
 
+	// Add the leaf path
 	if _, exists := tp.values[normalizedPath]; !exists {
 		tp.values[normalizedPath] = &ValuePath{
 			Path:     normalizedPath,
-			Type:     inferTypeFromHints(content, path),
+			Type:     inferTypeFromHints(path),
 			Required: false,
 		}
 	}
+
+	// Create intermediate object paths for nested paths like a.b.c
+	// This ensures that a and a.b are created as objects
+	tp.addIntermediatePaths(normalizedPath)
 }
 
 // normalizePath cleans up path strings
@@ -309,238 +314,46 @@ func (tp *TemplateParser) normalizePath(path string) string {
 	return regexp.MustCompile(`\[\d+\]`).ReplaceAllString(path, "[]")
 }
 
-// inferTypeFromHints performs heuristic type inference based on pipeline usage hints
-func inferTypeFromHints(content, path string) string {
-	if strings.Contains(path, "[]") {
+// inferTypeFromHints performs simple structural type inference
+func inferTypeFromHints(path string) string {
+	// Array notation: path ending with [] (not just containing it)
+	if strings.HasSuffix(path, "[]") {
 		return "array"
 	}
 
-	// Analyze pipeline hints throughout the content
-	hints := extractPipelineHints(content, path)
-
-	if hints.hasMapIteration || hints.hasMapOperations {
-		return "map"
-	}
-
-	if hints.hasArrayIteration || hints.hasArrayOperations {
-		return "array"
-	}
-
-	// Check for primitive default values (should take precedence over structural hints)
-	if hasPrimitiveDefaultValue(content, path) {
-		return "primitive"
-	}
-
-	// Additional heuristics based on path structure and naming
-	if hasMapStructureHints(path) {
-		return "map"
-	}
-
-	if hasArrayStructureHints(path) {
-		return "array"
-	}
-
-	// Default to primitive for leaf nodes
-	return "primitive"
+	// Default to unknown - we focus on getting the keyset right, not the datatypes
+	return "unknown"
 }
 
-// hasPrimitiveDefaultValue checks if a path has a primitive default value
-func hasPrimitiveDefaultValue(content, path string) bool {
-	// Escape dots in the path for regex
-	escapedPath := strings.ReplaceAll(path, ".", "\\.")
+// addIntermediatePaths creates intermediate object paths for nested paths
+// For path a.b.c, creates a (object) and a.b (object)
+// For path a[].b, creates a (array)
+func (tp *TemplateParser) addIntermediatePaths(path string) {
+	parts := strings.Split(path, ".")
 	
-	// Pattern to match .Values.path | default <primitive_value>
-	// Note: We exclude .Values references as defaults since those aren't primitives
-	patterns := []string{
-		// String defaults: | default "value"
-		`\.Values\.` + escapedPath + `\s*\|\s*default\s+"[^"]*"`,
-		// String defaults: | default 'value'  
-		`\.Values\.` + escapedPath + `\s*\|\s*default\s+'[^']*'`,
-		// Numeric defaults: | default 123
-		`\.Values\.` + escapedPath + `\s*\|\s*default\s+\d+`,
-		// Boolean defaults: | default true/false
-		`\.Values\.` + escapedPath + `\s*\|\s*default\s+(?:true|false)`,
-		// Unquoted simple string defaults: | default value (but not .Values.*)
-		`\.Values\.` + escapedPath + `\s*\|\s*default\s+(?!\.Values\.)[a-zA-Z][a-zA-Z0-9_]*`,
-	}
-	
-	for _, pattern := range patterns {
-		if matched, _ := regexp.MatchString(pattern, content); matched {
-			return true
+	for i := 1; i < len(parts); i++ {
+		intermediatePath := strings.Join(parts[:i], ".")
+		
+		// Determine if this intermediate path should be an array or object
+		pathType := "object" // Default to object
+		
+		// Check if this part ends with [] indicating array
+		if strings.HasSuffix(parts[i-1], "[]") {
+			pathType = "array"
 		}
-	}
-	
-	return false
-}
-
-// hasMapStructureHints checks if the path structure suggests a map/object
-func hasMapStructureHints(path string) bool {
-	// Paths ending with common object identifiers
-	mapPatterns := []string{
-		"config", "settings", "metadata", "labels", "annotations",
-		"env", "resources", "limits", "requests", "nodeSelector",
-		"tolerations", "affinity", "securityContext", "ingress",
-	}
-
-	pathLower := strings.ToLower(path)
-	for _, pattern := range mapPatterns {
-		if strings.HasSuffix(pathLower, pattern) {
-			return true
-		}
-	}
-
-	// Multi-level paths often indicate objects
-	return strings.Count(path, ".") >= 2
-}
-
-// hasArrayStructureHints checks if the path structure suggests an array
-func hasArrayStructureHints(path string) bool {
-	// Paths ending with common array identifiers
-	arrayPatterns := []string{
-		"items", "list", "array", "volumes", "ports", "hosts",
-		"endpoints", "rules", "paths", "containers", "initContainers",
-	}
-
-	pathLower := strings.ToLower(path)
-	for _, pattern := range arrayPatterns {
-		if strings.HasSuffix(pathLower, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// PipelineHints captures type hints from template pipeline usage
-type PipelineHints struct {
-	hasArrayIteration  bool // {{ range .Values.path }}
-	hasMapIteration    bool // {{ range $k, $v := .Values.path }}
-	hasArrayOperations bool // {{ len .Values.path }}, {{ index .Values.path 0 }}
-	hasMapOperations   bool // {{ keys .Values.path }}, {{ hasKey .Values.path "key" }}
-}
-
-// extractPipelineHints analyzes template content for type hints using token-based parsing
-func extractPipelineHints(content, path string) PipelineHints {
-	hints := PipelineHints{}
-
-	// Extract all pipeline expressions {{ ... }}
-	pipelineRegex := regexp.MustCompile(pipelineOpen + `([^}]+)` + pipelineClose)
-	pipelines := pipelineRegex.FindAllStringSubmatch(content, -1)
-
-	targetPath := ".Values." + path
-
-	for _, pipeline := range pipelines {
-		if len(pipeline) < 2 {
-			continue
-		}
-
-		tokens := tokenizePipeline(pipeline[1])
-		analyzePipelineTokens(tokens, targetPath, &hints)
-	}
-
-	return hints
-}
-
-// tokenizePipeline splits a pipeline expression into tokens
-func tokenizePipeline(pipeline string) []string {
-	// Split on whitespace and special characters, but preserve quoted strings
-	var tokens []string
-	current := ""
-	inQuotes := false
-
-	for i, r := range pipeline {
-		switch {
-		case r == '"' || r == '\'':
-			inQuotes = !inQuotes
-			current += string(r)
-		// Handle whitespace and special characters
-		case !inQuotes && (r == ' ' || r == '\t' || r == '\n' || r == ',' || r == ':' || r == '=' || r == '|'):
-			if current != "" {
-				tokens = append(tokens, strings.TrimSpace(current))
-				current = ""
+		
+		if existing, exists := tp.values[intermediatePath]; exists {
+			// Update existing path if it's unknown (direct reference) but should be object/array
+			if existing.Type == "unknown" && pathType != "unknown" {
+				existing.Type = pathType
 			}
-			// Add special characters as separate tokens if they're meaningful
-			if r == ',' || r == '|' || (r == ':' && i < len(pipeline)-1 && pipeline[i+1] == '=') {
-				tokens = append(tokens, string(r))
-			} else if r == '=' && i > 0 && pipeline[i-1] == ':' {
-				// Combine := as a single token
-				if len(tokens) > 0 && tokens[len(tokens)-1] == ":" {
-					tokens[len(tokens)-1] = ":="
-				}
-			}
-		default:
-			current += string(r)
-		}
-
-		// Handle end of string
-		if i == len(pipeline)-1 && current != "" {
-			tokens = append(tokens, strings.TrimSpace(current))
-		}
-	}
-
-	return tokens
-}
-
-// analyzePipelineTokens examines tokens for type hints
-func analyzePipelineTokens(tokens []string, targetPath string, hints *PipelineHints) {
-	for i, token := range tokens {
-		// Look for exact match of our target path in the tokens
-		if token != targetPath {
-			continue
-		}
-
-		// For range statements, analyze the entire pattern
-		rangeIndex := findTokenIndex(tokens, "range")
-		targetIndex := i
-
-		if rangeIndex != -1 && rangeIndex < targetIndex {
-			// Check if this is map iteration by looking for comma between range and :=
-			assignIndex := findTokenIndex(tokens, ":=")
-			if assignIndex != -1 && assignIndex < targetIndex {
-				// Look for comma between range and :=
-				for j := rangeIndex; j < assignIndex; j++ {
-					if tokens[j] == "," {
-						hints.hasMapIteration = true
-						return
-					}
-				}
-			}
-			// If we reached here and there was a range, it's array iteration
-			hints.hasArrayIteration = true
-		}
-
-		// Check preceding tokens for function calls
-		if i > 0 {
-			switch tokens[i-1] {
-			case "keys", "values", "hasKey":
-				hints.hasMapOperations = true
-			case "len", "index", "append":
-				hints.hasArrayOperations = true
-			}
-		}
-
-		// Check following tokens for pipeline operations
-		if i < len(tokens)-1 {
-			nextToken := tokens[i+1]
-			if nextToken == "|" && i < len(tokens)-2 {
-				pipeFunc := tokens[i+2]
-				switch pipeFunc {
-				case "keys", "values", "hasKey":
-					hints.hasMapOperations = true
-				case "len", "first", "last":
-					hints.hasArrayOperations = true
-				}
+		} else {
+			// Create new intermediate path
+			tp.values[intermediatePath] = &ValuePath{
+				Path:     intermediatePath,
+				Type:     pathType,
+				Required: false,
 			}
 		}
 	}
-}
-
-// findTokenIndex finds the index of a token in a slice
-func findTokenIndex(tokens []string, target string) int {
-	for i, token := range tokens {
-		if token == target {
-			return i
-		}
-	}
-	return -1
 }

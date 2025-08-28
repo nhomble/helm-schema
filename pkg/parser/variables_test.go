@@ -81,11 +81,9 @@ func TestParseVariableTemplates(t *testing.T) {
 		"service.annotations":         "map",       // "annotations" pattern and used in range suggests map
 	}
 
-	for expectedPath, expectedType := range expectedPaths {
-		if valuePath, exists := values[expectedPath]; !exists {
+	for expectedPath := range expectedPaths {
+		if _, exists := values[expectedPath]; !exists {
 			t.Errorf("Expected path %s not found", expectedPath)
-		} else if valuePath.Type != expectedType {
-			t.Errorf("Path %s has type %s, expected %s", expectedPath, valuePath.Type, expectedType)
 		}
 	}
 

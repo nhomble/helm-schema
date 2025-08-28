@@ -180,11 +180,11 @@ func TestArrayItemTypeInference(t *testing.T) {
 		expected  string
 	}{
 		{"array", "object"},
-		{"string", "string"},
-		{"boolean", "string"},
-		{"integer", "string"},
+		{"string", "unknown"},
+		{"boolean", "unknown"},
+		{"integer", "unknown"},
 		{"map", "object"},
-		{"primitive", "primitive"},
+		{"unknown", "unknown"},
 	}
 
 	for _, test := range tests {
@@ -211,7 +211,7 @@ func TestMapTypesToObjectConversion(t *testing.T) {
 		},
 		"app.settings": {
 			Path:     "app.settings",
-			Type:     "primitive",
+			Type:     "unknown",
 			Required: false,
 		},
 	}
@@ -233,11 +233,11 @@ func TestMapTypesToObjectConversion(t *testing.T) {
 		t.Error("map type should be converted to object")
 	}
 
-	// Test app.settings (primitive type should have no type field)
+	// Test app.settings (unknown type should have no type field)
 	appProp := properties["app"].(map[string]interface{})
 	appProperties := appProp["properties"].(map[string]interface{})
 	settingsProp := appProperties["settings"].(map[string]interface{})
 	if _, hasType := settingsProp["type"]; hasType {
-		t.Error("primitive type should not have a type field")
+		t.Error("unknown type should not have a type field")
 	}
 }

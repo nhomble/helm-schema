@@ -111,7 +111,7 @@ func addPropertyToSchema(properties map[string]any, path string, valuePath *pars
 				arrayProp := current[part].(map[string]any)
 				items := arrayProp["items"].(map[string]any)
 				itemType := getArrayItemType(valuePath.Type)
-				if itemType != "primitive" {
+				if itemType != "unknown" {
 					items["type"] = itemType
 				}
 			} else {
@@ -133,11 +133,12 @@ func addPropertyToSchema(properties map[string]any, path string, valuePath *pars
 			if i == len(parts)-1 {
 				// Final property
 				prop := make(map[string]any)
-				if valuePath.Type != "primitive" && valuePath.Type != "map" {
+				if valuePath.Type != "unknown" && valuePath.Type != "map" {
 					prop["type"] = valuePath.Type
 				} else if valuePath.Type == "map" {
 					prop["type"] = "object"
 				}
+				// For "unknown" type, we add no type field - let JSON Schema infer from values
 				current[part] = prop
 			} else {
 				// Intermediate object - ensure it exists and has correct structure
@@ -171,11 +172,11 @@ func getArrayItemType(arrayType string) string {
 	if arrayType == "array" {
 		return "object"
 	}
-	if arrayType == "primitive" {
-		return "primitive" // Will be filtered out by caller
+	if arrayType == "unknown" {
+		return "unknown" // Will be filtered out by caller
 	}
 	if arrayType == "map" {
 		return "object"
 	}
-	return "string"
+	return "unknown"
 }
