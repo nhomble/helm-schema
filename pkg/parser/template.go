@@ -2,12 +2,12 @@ package parser
 
 import (
 	"fmt"
+	"helm-schema/pkg/helm"
 	"maps"
 	"os"
 	"regexp"
 	"strings"
 	"sync"
-	"helm-schema/pkg/helm"
 )
 
 // ValuePath represents an intermediate representation of a discovered value path
@@ -20,12 +20,12 @@ type ValuePath struct {
 
 // TemplateParser handles parsing Helm templates to extract .Values references
 type TemplateParser struct {
-	values      map[string]*ValuePath
-	variables   map[string]string // Maps variable names to their .Values paths
-	subcharts   map[string]*TemplateParser // Maps subchart name to its parser
-	re          *regexp.Regexp
-	varRe       *regexp.Regexp
-	varRefRe    *regexp.Regexp
+	values    map[string]*ValuePath
+	variables map[string]string          // Maps variable names to their .Values paths
+	subcharts map[string]*TemplateParser // Maps subchart name to its parser
+	re        *regexp.Regexp
+	varRe     *regexp.Regexp
+	varRefRe  *regexp.Regexp
 }
 
 const (
@@ -84,7 +84,7 @@ func (tp *TemplateParser) ParseTemplateFile(filePath string) error {
 	}
 
 	contentStr := string(content)
-	
+
 	// Skip empty files
 	if strings.TrimSpace(contentStr) == "" {
 		return nil
@@ -114,59 +114,59 @@ func (tp *TemplateParser) ParseChartWithOptions(chartPath string, includeSubchar
 	if err != nil {
 		return err
 	}
-	
+
 	for _, templateFile := range templateFiles {
 		if err := tp.ParseTemplateFile(templateFile); err != nil {
 			return err
 		}
 	}
-	
+
 	if !includeSubcharts {
 		return nil
 	}
-	
+
 	// Check if we need to build remote dependencies
 	hasRemote, err := helm.HasRemoteDependencies(chartPath)
 	if err != nil {
 		return err
 	}
-	
+
 	if hasRemote {
 		// Ensure helm is available
 		if err := helm.EnsureHelmAvailable(); err != nil {
 			return err
 		}
-		
+
 		// Build dependencies to download remote charts
 		if err := helm.BuildDependencies(chartPath); err != nil {
 			return err
 		}
 	}
-	
+
 	// Parse all subcharts recursively (local and remote after build)
 	allDeps, err := helm.FindAllSubcharts(chartPath)
 	if err != nil {
 		return err
 	}
-	
+
 	for _, dep := range allDeps {
 		subchartPath := dep.GetSubchartPath(chartPath)
-		
+
 		// Validate subchart exists
 		if err := helm.ValidateChartDirectory(subchartPath); err != nil {
 			// Continue if subchart not available - might be conditional or optional
 			continue
 		}
-		
+
 		// Create parser for subchart
 		subchartParser := New()
 		if err := subchartParser.ParseChartWithOptions(subchartPath, true); err != nil {
 			return fmt.Errorf("failed to parse subchart %s at %s: %w", dep.Name, subchartPath, err)
 		}
-		
+
 		tp.subcharts[dep.Name] = subchartParser
 	}
-	
+
 	return nil
 }
 
@@ -183,16 +183,16 @@ func (tp *TemplateParser) GetSubcharts() map[string]*TemplateParser {
 // GetAllValues returns all value paths including those from subcharts
 func (tp *TemplateParser) GetAllValues() map[string]*ValuePath {
 	allValues := make(map[string]*ValuePath)
-	
+
 	// Add main chart values using maps.Copy for efficiency
 	maps.Copy(allValues, tp.values)
-	
+
 	// Add subchart values with proper prefixing (using concurrent processing for large charts)
 	if len(tp.subcharts) > 5 {
 		// Use parallel processing for many subcharts
 		return tp.getAllValuesParallel()
 	}
-	
+
 	// Sequential processing for smaller charts
 	for subchartName, subchartParser := range tp.subcharts {
 		subchartValues := subchartParser.GetAllValues()
@@ -208,7 +208,7 @@ func (tp *TemplateParser) GetAllValues() map[string]*ValuePath {
 			allValues[prefixedPath] = prefixedValuePath
 		}
 	}
-	
+
 	return allValues
 }
 
@@ -216,17 +216,17 @@ func (tp *TemplateParser) GetAllValues() map[string]*ValuePath {
 func (tp *TemplateParser) getAllValuesParallel() map[string]*ValuePath {
 	allValues := make(map[string]*ValuePath)
 	maps.Copy(allValues, tp.values)
-	
+
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	
+
 	for subchartName, subchartParser := range tp.subcharts {
 		wg.Add(1)
 		go func(name string, parser *TemplateParser) {
 			defer wg.Done()
-			
+
 			subchartValues := parser.GetAllValues()
-			
+
 			mu.Lock()
 			defer mu.Unlock()
 			for path, valuePath := range subchartValues {
@@ -240,7 +240,7 @@ func (tp *TemplateParser) getAllValuesParallel() map[string]*ValuePath {
 			}
 		}(subchartName, subchartParser)
 	}
-	
+
 	wg.Wait()
 	return allValues
 }
@@ -347,14 +347,14 @@ func hasMapStructureHints(path string) bool {
 		"env", "resources", "limits", "requests", "nodeSelector",
 		"tolerations", "affinity", "securityContext", "ingress",
 	}
-	
+
 	pathLower := strings.ToLower(path)
 	for _, pattern := range mapPatterns {
 		if strings.HasSuffix(pathLower, pattern) {
 			return true
 		}
 	}
-	
+
 	// Multi-level paths often indicate objects
 	return strings.Count(path, ".") >= 2
 }
@@ -366,14 +366,14 @@ func hasArrayStructureHints(path string) bool {
 		"items", "list", "array", "volumes", "ports", "hosts",
 		"endpoints", "rules", "paths", "containers", "initContainers",
 	}
-	
+
 	pathLower := strings.ToLower(path)
 	for _, pattern := range arrayPatterns {
 		if strings.HasSuffix(pathLower, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 

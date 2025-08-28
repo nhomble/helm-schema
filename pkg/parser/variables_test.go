@@ -50,35 +50,35 @@ func TestParseVariableTemplates(t *testing.T) {
 		"service.port":     "primitive",
 
 		// Variable references that should be resolved
-		"accountInfo.name":      "primitive", // $accountInfo.name
-		"accountInfo.tier":      "primitive", // $accountInfo.tier
-		"accountInfo.id":        "primitive", // $accountInfo.id
-		"accountInfo.ingressHost": "primitive", // $accountInfo.ingressHost
-		"accountInfo.customDomain.name": "map", // Multi-level path suggests object
-		"accountInfo.customDomain.ssl.enabled": "map", // Multi-level path suggests object
-		"accountInfo.labels":    "map", // "labels" pattern and used in range suggests map
+		"accountInfo.name":                     "primitive", // $accountInfo.name
+		"accountInfo.tier":                     "primitive", // $accountInfo.tier
+		"accountInfo.id":                       "primitive", // $accountInfo.id
+		"accountInfo.ingressHost":              "primitive", // $accountInfo.ingressHost
+		"accountInfo.customDomain.name":        "map",       // Multi-level path suggests object
+		"accountInfo.customDomain.ssl.enabled": "map",       // Multi-level path suggests object
+		"accountInfo.labels":                   "map",       // "labels" pattern and used in range suggests map
 
-		"database.host":         "primitive", // $database.host
-		"database.port":         "primitive", // $database.port
-		"database.name":         "primitive", // $database.name
-		"database.ssl.enabled":  "map", // Multi-level path suggests object
-		"database.ssl.cert.path": "map", // Multi-level path suggests object
+		"database.host":          "primitive", // $database.host
+		"database.port":          "primitive", // $database.port
+		"database.name":          "primitive", // $database.name
+		"database.ssl.enabled":   "map",       // Multi-level path suggests object
+		"database.ssl.cert.path": "map",       // Multi-level path suggests object
 
-		"app.config.apiEndpoint":    "map", // Multi-level path suggests object
-		"app.config.cache.ttl":      "map", // Multi-level path suggests object
-		"app.config.logging.level":  "map", // Multi-level path suggests object
+		"app.config.apiEndpoint":     "map", // Multi-level path suggests object
+		"app.config.cache.ttl":       "map", // Multi-level path suggests object
+		"app.config.logging.level":   "map", // Multi-level path suggests object
 		"app.config.monitoring.port": "map", // Multi-level path suggests object
 
 		"features.experimental.enabled": "map", // Multi-level path suggests object
 		"features.experimental.flags":   "map", // Multi-level path suggests object
 
-		"service.type":           "primitive", // $serviceConfig.type
-		"service.loadBalancerIP": "primitive", // $serviceConfig.loadBalancerIP
-		"service.targetPort":     "primitive", // $serviceConfig.targetPort
-		"service.additionalPorts": "array", // "ports" pattern suggests array
-		"service.loadBalancer.type":   "map", // Multi-level path suggests object
-		"service.loadBalancer.scheme": "map", // Multi-level path suggests object
-		"service.annotations":    "map", // "annotations" pattern and used in range suggests map
+		"service.type":                "primitive", // $serviceConfig.type
+		"service.loadBalancerIP":      "primitive", // $serviceConfig.loadBalancerIP
+		"service.targetPort":          "primitive", // $serviceConfig.targetPort
+		"service.additionalPorts":     "array",     // "ports" pattern suggests array
+		"service.loadBalancer.type":   "map",       // Multi-level path suggests object
+		"service.loadBalancer.scheme": "map",       // Multi-level path suggests object
+		"service.annotations":         "map",       // "annotations" pattern and used in range suggests map
 	}
 
 	for expectedPath, expectedType := range expectedPaths {

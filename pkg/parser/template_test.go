@@ -26,23 +26,23 @@ func TestParseBasicChart(t *testing.T) {
 
 	// Test expected basic paths are found
 	expectedPaths := map[string]string{
-		"app.name":       "primitive",
-		"app.debug":      "primitive",
-		"app.enabled":    "primitive",
-		"app.replicas":   "primitive",
-		"image.repository": "primitive",
-		"image.tag":      "primitive",
-		"image.pullPolicy": "primitive",
-		"service.port":   "primitive",
-		"service.type":   "primitive",
-		"database.host":  "primitive",
-		"database.port":  "primitive",
-		"config.data":    "map", // Used in map range
-		"config.properties": "array", // Used in array range (takes precedence)  
-		"config":         "map", // Contains sub-properties, correctly inferred as map
-		"secrets.name":   "primitive",
-		"secrets":        "primitive", // Used in if condition  
-		"resources":      "primitive", // Used with toYaml but not detected as map in pipeline
+		"app.name":          "primitive",
+		"app.debug":         "primitive",
+		"app.enabled":       "primitive",
+		"app.replicas":      "primitive",
+		"image.repository":  "primitive",
+		"image.tag":         "primitive",
+		"image.pullPolicy":  "primitive",
+		"service.port":      "primitive",
+		"service.type":      "primitive",
+		"database.host":     "primitive",
+		"database.port":     "primitive",
+		"config.data":       "map",   // Used in map range
+		"config.properties": "array", // Used in array range (takes precedence)
+		"config":            "map",   // Contains sub-properties, correctly inferred as map
+		"secrets.name":      "primitive",
+		"secrets":           "primitive", // Used in if condition
+		"resources":         "primitive", // Used with toYaml but not detected as map in pipeline
 	}
 
 	for expectedPath, expectedType := range expectedPaths {
@@ -83,39 +83,39 @@ func TestParseComplexConditionals(t *testing.T) {
 
 	// Test some key complex conditional paths
 	expectedComplexPaths := map[string]string{
-		"rollout.enabled":           "primitive",
-		"rollout.revision":          "primitive",
-		"rollout.strategy":          "primitive",
-		"rollout.maxSurge":          "primitive",
-		"rollout.maxUnavailable":    "primitive",
-		"app.environment":           "primitive",
-		"global.env":                "map", // Common object pattern
-		"scaling.enabled":           "primitive",
-		"scaling.replicas":          "primitive",
-		"security.runAsNonRoot":     "primitive",
-		"security.runAsUser":        "primitive",
-		"security.capabilities.drop": "array",
-		"security.capabilities.add":  "array",
-		"monitoring.prometheus.scrape": "map", // Multi-level path suggests object
-		"monitoring.prometheus.port": "map", // Multi-level path suggests object
-		"metrics.enabled":           "primitive",
-		"metrics.path":              "primitive",
-		"features.experimental.enabled": "map", // Multi-level path suggests object
-		"features.experimental.flags": "map", // Multi-level path suggests object
-		"features.flags":            "map",
-		"database.config":           "map", // "config" pattern suggests object
-		"database.migrations.enabled": "map", // Multi-level path suggests object
-		"database.migrations.scripts": "array",
+		"rollout.enabled":                    "primitive",
+		"rollout.revision":                   "primitive",
+		"rollout.strategy":                   "primitive",
+		"rollout.maxSurge":                   "primitive",
+		"rollout.maxUnavailable":             "primitive",
+		"app.environment":                    "primitive",
+		"global.env":                         "map", // Common object pattern
+		"scaling.enabled":                    "primitive",
+		"scaling.replicas":                   "primitive",
+		"security.runAsNonRoot":              "primitive",
+		"security.runAsUser":                 "primitive",
+		"security.capabilities.drop":         "array",
+		"security.capabilities.add":          "array",
+		"monitoring.prometheus.scrape":       "map", // Multi-level path suggests object
+		"monitoring.prometheus.port":         "map", // Multi-level path suggests object
+		"metrics.enabled":                    "primitive",
+		"metrics.path":                       "primitive",
+		"features.experimental.enabled":      "map", // Multi-level path suggests object
+		"features.experimental.flags":        "map", // Multi-level path suggests object
+		"features.flags":                     "map",
+		"database.config":                    "map", // "config" pattern suggests object
+		"database.migrations.enabled":        "map", // Multi-level path suggests object
+		"database.migrations.scripts":        "array",
 		"external.database.connectionString": "map", // Multi-level path suggests object
-		"service.additionalPorts":   "array",
-		"service.external.ips":      "array",
-		"loadBalancer.enabled":      "primitive",
-		"loadBalancer.type":         "primitive",
-		"loadBalancer.internal":     "primitive",
-		"loadBalancer.subnets":      "primitive",
-		"logging.level":             "primitive",
-		"logging.config":            "map",
-		"logging.appenders":         "array",
+		"service.additionalPorts":            "array",
+		"service.external.ips":               "array",
+		"loadBalancer.enabled":               "primitive",
+		"loadBalancer.type":                  "primitive",
+		"loadBalancer.internal":              "primitive",
+		"loadBalancer.subnets":               "primitive",
+		"logging.level":                      "primitive",
+		"logging.config":                     "map",
+		"logging.appenders":                  "array",
 	}
 
 	for expectedPath, expectedType := range expectedComplexPaths {
@@ -183,7 +183,7 @@ func TestPipelineHints(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result := inferTypeFromHints(test.content, test.path)
 			if result != test.expected {
-				t.Errorf("inferTypeFromHints(%s, %s) = %s, expected %s", 
+				t.Errorf("inferTypeFromHints(%s, %s) = %s, expected %s",
 					test.content, test.path, result, test.expected)
 			}
 		})
@@ -209,11 +209,11 @@ enabled: true
 `
 
 	tests := []struct {
-		path               string
-		expectedMapIter    bool
-		expectedArrayIter  bool
-		expectedMapOps     bool
-		expectedArrayOps   bool
+		path              string
+		expectedMapIter   bool
+		expectedArrayIter bool
+		expectedMapOps    bool
+		expectedArrayOps  bool
 	}{
 		{"config", true, false, false, false},
 		{"items", false, true, false, true},

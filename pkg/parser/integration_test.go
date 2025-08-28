@@ -67,7 +67,7 @@ func TestRemoteDependencyIntegration(t *testing.T) {
 	t.Run("VerifyHelmCommandsWork", func(t *testing.T) {
 		// Test that we can at least check if helm dependency build would work
 		// without actually running it (to avoid network calls in tests)
-		
+
 		allDeps, err := helm.FindAllSubcharts(testChart)
 		if err != nil {
 			t.Fatalf("Failed to find all subcharts: %v", err)
@@ -84,7 +84,7 @@ func TestRemoteDependencyIntegration(t *testing.T) {
 		}
 
 		t.Logf("Chart has %d local and %d remote dependencies", localCount, remoteCount)
-		
+
 		if remoteCount == 0 {
 			t.Error("Expected test chart to have at least one remote dependency")
 		}
@@ -94,7 +94,7 @@ func TestRemoteDependencyIntegration(t *testing.T) {
 // createTestChartWithRemoteDeps creates a minimal test chart with both local and remote dependencies
 func createTestChartWithRemoteDeps(t *testing.T, baseDir string) string {
 	chartDir := filepath.Join(baseDir, "test-integration-chart")
-	
+
 	// Create chart structure
 	if err := os.MkdirAll(filepath.Join(chartDir, "templates"), 0755); err != nil {
 		t.Fatalf("Failed to create chart directory: %v", err)

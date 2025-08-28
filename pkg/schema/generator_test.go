@@ -57,7 +57,7 @@ func TestGenerateBasicSchema(t *testing.T) {
 	}
 
 	appProperties := appProp["properties"].(map[string]interface{})
-	
+
 	// Test app.name
 	nameProp := appProperties["name"].(map[string]interface{})
 	if nameProp["type"] != "string" {
@@ -122,7 +122,7 @@ func TestGenerateSchemaWithNestedArrays(t *testing.T) {
 	featuresProp := properties["features"].(map[string]interface{})
 	featuresProperties := featuresProp["properties"].(map[string]interface{})
 	flagsProp := featuresProperties["flags"].(map[string]interface{})
-	
+
 	if flagsProp["type"] != "array" {
 		t.Error("features.flags should be array type")
 	}
@@ -133,7 +133,7 @@ func TestGenerateSchemaWithNestedArrays(t *testing.T) {
 	capabilitiesProp := securityProperties["capabilities"].(map[string]interface{})
 	capabilitiesProperties := capabilitiesProp["properties"].(map[string]interface{})
 	dropProp := capabilitiesProperties["drop"].(map[string]interface{})
-	
+
 	if dropProp["type"] != "array" {
 		t.Error("security.capabilities.drop should be array type")
 	}
@@ -155,7 +155,7 @@ func TestSchemaValidJSON(t *testing.T) {
 	}
 
 	schema := Generate(values)
-	
+
 	// Should be able to marshal to JSON without error
 	jsonBytes, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
@@ -188,7 +188,7 @@ func TestArrayItemTypeInference(t *testing.T) {
 	for _, test := range tests {
 		result := getArrayItemType(test.arrayType)
 		if result != test.expected {
-			t.Errorf("getArrayItemType(%s) = %s, expected %s", 
+			t.Errorf("getArrayItemType(%s) = %s, expected %s",
 				test.arrayType, result, test.expected)
 		}
 	}

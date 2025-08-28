@@ -2,12 +2,12 @@ package helm
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"gopkg.in/yaml.v3"
 )
 
 // ChartMetadata represents the Chart.yaml structure
@@ -20,10 +20,10 @@ type ChartMetadata struct {
 
 // Dependency represents a chart dependency
 type Dependency struct {
-	Name       string `yaml:"name"`
-	Version    string `yaml:"version"`
-	Repository string `yaml:"repository"`
-	Condition  string `yaml:"condition,omitempty"`
+	Name       string   `yaml:"name"`
+	Version    string   `yaml:"version"`
+	Repository string   `yaml:"repository"`
+	Condition  string   `yaml:"condition,omitempty"`
 	Tags       []string `yaml:"tags,omitempty"`
 }
 
@@ -64,25 +64,25 @@ func FindTemplates(chartPath string) ([]string, error) {
 // ParseChartMetadata reads and parses the Chart.yaml file
 func ParseChartMetadata(chartPath string) (*ChartMetadata, error) {
 	chartFile := filepath.Join(chartPath, "Chart.yaml")
-	
+
 	data, err := os.ReadFile(chartFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Chart.yaml: %w", err)
 	}
-	
+
 	var metadata ChartMetadata
 	if err := yaml.Unmarshal(data, &metadata); err != nil {
 		return nil, fmt.Errorf("failed to parse Chart.yaml: %w", err)
 	}
-	
+
 	return &metadata, nil
 }
 
 // IsLocalDependency checks if a dependency is a local subchart
 func (d *Dependency) IsLocalDependency() bool {
 	// Local dependencies have file:// repository or are relative paths
-	return d.Repository == "" || strings.HasPrefix(d.Repository, "file://") || 
-		   strings.HasPrefix(d.Repository, "./") || strings.HasPrefix(d.Repository, "../")
+	return d.Repository == "" || strings.HasPrefix(d.Repository, "file://") ||
+		strings.HasPrefix(d.Repository, "./") || strings.HasPrefix(d.Repository, "../")
 }
 
 // GetLocalSubchartPath returns the filesystem path for a local dependency
@@ -91,7 +91,7 @@ func (d *Dependency) GetLocalSubchartPath(parentChartPath string) string {
 		// Default location: charts/name
 		return filepath.Join(parentChartPath, "charts", d.Name)
 	}
-	
+
 	if strings.HasPrefix(d.Repository, "file://") {
 		// Remove file:// prefix
 		path := strings.TrimPrefix(d.Repository, "file://")
@@ -100,7 +100,7 @@ func (d *Dependency) GetLocalSubchartPath(parentChartPath string) string {
 		}
 		return filepath.Join(parentChartPath, path)
 	}
-	
+
 	// Relative path
 	return filepath.Join(parentChartPath, d.Repository)
 }
@@ -111,7 +111,7 @@ func FindLocalSubcharts(chartPath string) ([]*Dependency, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var localDeps []*Dependency
 	for i := range metadata.Dependencies {
 		dep := &metadata.Dependencies[i]
@@ -119,7 +119,7 @@ func FindLocalSubcharts(chartPath string) ([]*Dependency, error) {
 			localDeps = append(localDeps, dep)
 		}
 	}
-	
+
 	return localDeps, nil
 }
 
@@ -136,13 +136,13 @@ func EnsureHelmAvailable() error {
 func BuildDependencies(chartPath string) error {
 	cmd := exec.Command("helm", "dependency", "build")
 	cmd.Dir = chartPath
-	
+
 	// Capture output for error reporting
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("helm dependency build failed: %w\nOutput: %s", err, string(output))
 	}
-	
+
 	return nil
 }
 
@@ -152,13 +152,13 @@ func HasRemoteDependencies(chartPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	
+
 	for _, dep := range metadata.Dependencies {
 		if !dep.IsLocalDependency() {
 			return true, nil
 		}
 	}
-	
+
 	return false, nil
 }
 
@@ -168,13 +168,13 @@ func FindAllSubcharts(chartPath string) ([]*Dependency, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var allDeps []*Dependency
 	for i := range metadata.Dependencies {
 		dep := &metadata.Dependencies[i]
 		allDeps = append(allDeps, dep)
 	}
-	
+
 	return allDeps, nil
 }
 
@@ -183,7 +183,7 @@ func (d *Dependency) GetSubchartPath(parentChartPath string) string {
 	if d.IsLocalDependency() {
 		return d.GetLocalSubchartPath(parentChartPath)
 	}
-	
+
 	// Remote dependencies are downloaded to charts/ directory by helm dependency build
 	return filepath.Join(parentChartPath, "charts", d.Name)
 }

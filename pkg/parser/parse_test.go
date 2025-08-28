@@ -12,33 +12,33 @@ func TestParseVariableReferences(t *testing.T) {
 		expected []string
 	}{
 		{
-			name:    "single variable reference",
-			content: `{{ $database.host }}`,
-			vars:    map[string]string{"database": "database"},
+			name:     "single variable reference",
+			content:  `{{ $database.host }}`,
+			vars:     map[string]string{"database": "database"},
 			expected: []string{"database.host"},
 		},
 		{
-			name:    "nested field access",
-			content: `{{ $config.ssl.cert.path }}`,
-			vars:    map[string]string{"config": "app.config"},
+			name:     "nested field access",
+			content:  `{{ $config.ssl.cert.path }}`,
+			vars:     map[string]string{"config": "app.config"},
 			expected: []string{"app.config.ssl.cert.path"},
 		},
 		{
-			name:    "undefined variable ignored",
-			content: `{{ $undefined.field }}`,
-			vars:    map[string]string{},
+			name:     "undefined variable ignored",
+			content:  `{{ $undefined.field }}`,
+			vars:     map[string]string{},
 			expected: []string{},
 		},
 		{
-			name:    "variable with pipeline",
-			content: `{{ $database.host | quote }}`,
-			vars:    map[string]string{"database": "database"},
+			name:     "variable with pipeline",
+			content:  `{{ $database.host | quote }}`,
+			vars:     map[string]string{"database": "database"},
 			expected: []string{"database.host"},
 		},
 		{
-			name:    "variable in quotes",
-			content: `value: "{{ $config.port }}"`,
-			vars:    map[string]string{"config": "app.config"},
+			name:     "variable in quotes",
+			content:  `value: "{{ $config.port }}"`,
+			vars:     map[string]string{"config": "app.config"},
 			expected: []string{"app.config.port"},
 		},
 	}
@@ -46,20 +46,20 @@ func TestParseVariableReferences(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := New()
-			
+
 			// Set up the variables
 			parser.variables = tt.vars
-			
+
 			// Parse variable references
 			parser.parseVariableReferences(tt.content)
-			
+
 			// Check that expected paths were found
 			for _, expectedPath := range tt.expected {
 				if _, found := parser.values[expectedPath]; !found {
 					t.Errorf("Expected path %s not found in parsed values", expectedPath)
 				}
 			}
-			
+
 			// Check that we didn't find unexpected paths
 			if len(parser.values) != len(tt.expected) {
 				t.Errorf("Expected %d paths, found %d", len(tt.expected), len(parser.values))
@@ -78,42 +78,42 @@ func TestParseVariableAssignments(t *testing.T) {
 		expected map[string]string // variable name -> path
 	}{
 		{
-			name: "simple assignment",
+			name:    "simple assignment",
 			content: `{{- $database := .Values.database -}}`,
 			expected: map[string]string{
 				"database": "database",
 			},
 		},
 		{
-			name: "nested path assignment",
+			name:    "nested path assignment",
 			content: `{{- $config := .Values.app.config -}}`,
 			expected: map[string]string{
 				"config": "app.config",
 			},
 		},
 		{
-			name: "assignment with default function",
+			name:    "assignment with default function",
 			content: `{{ $features := .Values.features | default dict }}`,
 			expected: map[string]string{
 				"features": "features",
 			},
 		},
 		{
-			name: "assignment without whitespace",
+			name:    "assignment without whitespace",
 			content: `{{$var:=.Values.path}}`,
 			expected: map[string]string{
 				"var": "path",
 			},
 		},
 		{
-			name: "assignment with extra whitespace",
+			name:    "assignment with extra whitespace",
 			content: `{{ $var   :=   .Values.path   }}`,
 			expected: map[string]string{
 				"var": "path",
 			},
 		},
 		{
-			name: "assignment with template comment",
+			name:    "assignment with template comment",
 			content: `{{- $database := .Values.database -}} {{/* Database config */}}`,
 			expected: map[string]string{
 				"database": "database",
@@ -124,10 +124,10 @@ func TestParseVariableAssignments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := New()
-			
+
 			// Parse variable assignments
 			parser.parseVariableAssignments(tt.content)
-			
+
 			// Check expected assignments
 			for varName, expectedPath := range tt.expected {
 				if actualPath, found := parser.variables[varName]; !found {
@@ -136,7 +136,7 @@ func TestParseVariableAssignments(t *testing.T) {
 					t.Errorf("Variable %s: expected path %s, got %s", varName, expectedPath, actualPath)
 				}
 			}
-			
+
 			// Check we didn't find unexpected variables
 			if len(parser.variables) != len(tt.expected) {
 				t.Errorf("Expected %d variables, found %d", len(tt.expected), len(parser.variables))
@@ -155,33 +155,33 @@ func TestParseDirectValueReferences(t *testing.T) {
 		expected []string
 	}{
 		{
-			name: "simple value reference",
-			content: `{{ .Values.app.name }}`,
+			name:     "simple value reference",
+			content:  `{{ .Values.app.name }}`,
 			expected: []string{"app.name"},
 		},
 		{
-			name: "nested path reference",
-			content: `{{ .Values.database.ssl.enabled }}`,
+			name:     "nested path reference",
+			content:  `{{ .Values.database.ssl.enabled }}`,
 			expected: []string{"database.ssl.enabled"},
 		},
 		{
-			name: "value reference with pipeline",
-			content: `{{ .Values.app.replicas | default 1 }}`,
+			name:     "value reference with pipeline",
+			content:  `{{ .Values.app.replicas | default 1 }}`,
 			expected: []string{"app.replicas"},
 		},
 		{
-			name: "value reference in quotes",
-			content: `value: "{{ .Values.database.port }}"`,
+			name:     "value reference in quotes",
+			content:  `value: "{{ .Values.database.port }}"`,
 			expected: []string{"database.port"},
 		},
 		{
-			name: "value reference in conditional",
-			content: `{{- if .Values.app.enabled }}`,
+			name:     "value reference in conditional",
+			content:  `{{- if .Values.app.enabled }}`,
 			expected: []string{"app.enabled"},
 		},
 		{
-			name: "value reference with template comment",
-			content: `{{ .Values.app.name }} {{/* Application name */}}`,
+			name:     "value reference with template comment",
+			content:  `{{ .Values.app.name }} {{/* Application name */}}`,
 			expected: []string{"app.name"},
 		},
 	}
@@ -189,17 +189,17 @@ func TestParseDirectValueReferences(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := New()
-			
+
 			// Parse direct value references
 			parser.parseDirectValueReferences(tt.content)
-			
+
 			// Check expected paths
 			for _, expectedPath := range tt.expected {
 				if _, found := parser.values[expectedPath]; !found {
 					t.Errorf("Expected path %s not found", expectedPath)
 				}
 			}
-			
+
 			// Check count
 			if len(parser.values) != len(tt.expected) {
 				t.Errorf("Expected %d paths, found %d", len(tt.expected), len(parser.values))

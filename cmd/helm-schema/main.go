@@ -66,7 +66,7 @@ func chartToSchema(chartPath string, includeSubcharts bool) (string, error) {
 	if mainProps, ok := mainSchema.Schema["properties"].(map[string]any); ok {
 		totalValues = len(mainProps)
 	}
-	
+
 	for _, subchart := range subchartSchemas {
 		if props, ok := subchart.Schema["properties"].(map[string]any); ok {
 			totalValues += len(props)
