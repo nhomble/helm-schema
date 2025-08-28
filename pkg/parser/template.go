@@ -330,18 +330,18 @@ func inferTypeFromHints(path string) string {
 // For path a[].b, creates a (array)
 func (tp *TemplateParser) addIntermediatePaths(path string) {
 	parts := strings.Split(path, ".")
-	
+
 	for i := 1; i < len(parts); i++ {
 		intermediatePath := strings.Join(parts[:i], ".")
-		
+
 		// Determine if this intermediate path should be an array or object
 		pathType := "object" // Default to object
-		
+
 		// Check if this part ends with [] indicating array
 		if strings.HasSuffix(parts[i-1], "[]") {
 			pathType = "array"
 		}
-		
+
 		if existing, exists := tp.values[intermediatePath]; exists {
 			// Update existing path if it's unknown (direct reference) but should be object/array
 			if existing.Type == "unknown" && pathType != "unknown" {
