@@ -5,6 +5,21 @@
 
 set -e
 
+usage() {
+    echo "Generate JSON Schema for Helm chart values"
+    echo ""
+    echo "Usage:"
+    echo "  helm schema <chart-path> [flags]"
+    echo ""
+    echo "Examples:"
+    echo "  helm schema ./my-chart                    # Generate schema for chart"
+    echo "  helm schema ./my-chart --no-subcharts    # Skip subchart parsing"
+    echo "  helm schema https://example.com/chart.tgz # Generate schema from remote chart"
+    echo ""
+    echo "Flags:"
+    "$BINARY" --help 2>&1 | grep -E "^\s*-"
+}
+
 # Use the bundled binary from the plugin directory
 BINARY="$HELM_PLUGIN_DIR/helm-schema"
 
@@ -20,35 +35,10 @@ if [[ ! -f "$BINARY" ]]; then
 fi
 
 # Make sure binary is executable
-if [[ ! -x "$BINARY" ]]; then
-    chmod +x "$BINARY"
-fi
+[[ ! -x "$BINARY" ]] && chmod +x "$BINARY"
 
-# Check for help flag
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-    echo "Generate JSON Schema for Helm chart values"
-    echo ""
-    echo "Usage:"
-    echo "  helm schema <chart-path> [flags]"
-    echo ""
-    echo "Examples:"
-    echo "  helm schema ./my-chart                    # Generate schema for chart"
-    echo "  helm schema ./my-chart --no-subcharts    # Skip subchart parsing"
-    echo "  helm schema https://example.com/chart.tgz # Generate schema from remote chart"
-    echo ""
-    echo "Flags:"
-    "$BINARY" --help 2>&1 | grep -E "^\s*-"
-    exit 0
-fi
-
-# Handle special case where no arguments are provided
-if [[ $# -eq 0 ]]; then
-    echo "Error: chart path is required" >&2
-    echo "" >&2
-    echo "Usage: helm schema <chart-path> [flags]" >&2
-    echo "Run 'helm schema --help' for more information." >&2
-    exit 1
-fi
+[[ "$1" == "-h" || "$1" == "--help" ]] && usage && exit 0
+[[ $# -eq 0 ]] && echo "Error: chart path is required" >&2 && usage && exit 1
 
 # Check if first argument is a URL (remote chart)
 CHART_PATH="$1"
