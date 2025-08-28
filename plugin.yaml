@@ -28,5 +28,9 @@ platformCommand:
 platformHooks:
   install:
     - command: make build -C $HELM_PLUGIN_DIR
+  update:
+    - command: git pull -C $HELM_PLUGIN_DIR
+    - command: make clean -C $HELM_PLUGIN_DIR
+    - command: make build -C $HELM_PLUGIN_DIR
   delete:
     - command: make clean -C $HELM_PLUGIN_DIR
