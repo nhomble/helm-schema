@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}-redis
+spec:
+  replicas: {{ .Values.replicas | default 1 }}
+  template:
+    spec:
+      containers:
+      - name: redis
+        image: "redis:{{ .Values.version }}"
+        ports:
+        - containerPort: {{ .Values.port }}
+        {{- if .Values.auth.enabled }}
+        env:
+        - name: REDIS_PASSWORD
+          value: {{ .Values.auth.password | quote }}
+        {{- end }}

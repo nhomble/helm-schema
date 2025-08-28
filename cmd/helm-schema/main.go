@@ -36,30 +36,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Find all template files
-	templateFiles, err := helm.FindTemplates(absPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error finding templates: %v\n", err)
-		os.Exit(1)
-	}
-
-	if len(templateFiles) == 0 {
-		fmt.Fprintf(os.Stderr, "No template files found in %s/templates\n", absPath)
-		os.Exit(1)
-	}
-
-	// Parse all templates
+	// Parse chart including subcharts
 	p := parser.New()
-
-	for _, file := range templateFiles {
-		if err := p.ParseTemplateFile(file); err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing %s: %v\n", file, err)
-			os.Exit(1)
-		}
+	if err := p.ParseChart(absPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing chart: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Generate JSON schema from parsed values
-	jsonSchema := schema.Generate(p.GetValues())
+	// Get all values including subchart values
+	allValues := p.GetAllValues()
+	if len(allValues) == 0 {
+		fmt.Fprintf(os.Stderr, "No value paths found in chart %s\n", absPath)
+		os.Exit(1)
+	}
+
+	// Generate JSON schema from parsed values (including subcharts)
+	jsonSchema := schema.Generate(allValues)
 
 	// Output JSON schema to stdout
 	output, err := json.MarshalIndent(jsonSchema, "", "  ")

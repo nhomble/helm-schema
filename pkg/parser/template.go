@@ -4,6 +4,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"helm-schema/pkg/helm"
 )
 
 // ValuePath represents an intermediate representation of a discovered value path
@@ -16,11 +17,12 @@ type ValuePath struct {
 
 // TemplateParser handles parsing Helm templates to extract .Values references
 type TemplateParser struct {
-	values    map[string]*ValuePath
-	variables map[string]string // Maps variable names to their .Values paths
-	re        *regexp.Regexp
-	varRe     *regexp.Regexp
-	varRefRe  *regexp.Regexp
+	values      map[string]*ValuePath
+	variables   map[string]string // Maps variable names to their .Values paths
+	subcharts   map[string]*TemplateParser // Maps subchart name to its parser
+	re          *regexp.Regexp
+	varRe       *regexp.Regexp
+	varRefRe    *regexp.Regexp
 }
 
 const (
@@ -61,6 +63,7 @@ func New() *TemplateParser {
 	return &TemplateParser{
 		values:    make(map[string]*ValuePath),
 		variables: make(map[string]string),
+		subcharts: make(map[string]*TemplateParser),
 		// Match: .Values.path
 		re: regexp.MustCompile(`\.Values\.` + capture(valuePath) + valueBoundary),
 		// Match: {{ $var := .Values.path }}
@@ -91,9 +94,83 @@ func (tp *TemplateParser) ParseTemplateFile(filePath string) error {
 	return nil
 }
 
+// ParseChart processes an entire chart including its local subcharts
+func (tp *TemplateParser) ParseChart(chartPath string) error {
+	// Parse main chart templates
+	templateFiles, err := helm.FindTemplates(chartPath)
+	if err != nil {
+		return err
+	}
+	
+	for _, templateFile := range templateFiles {
+		if err := tp.ParseTemplateFile(templateFile); err != nil {
+			return err
+		}
+	}
+	
+	// Parse local subcharts recursively
+	localDeps, err := helm.FindLocalSubcharts(chartPath)
+	if err != nil {
+		return err
+	}
+	
+	for _, dep := range localDeps {
+		subchartPath := dep.GetLocalSubchartPath(chartPath)
+		
+		// Validate subchart exists
+		if err := helm.ValidateChartDirectory(subchartPath); err != nil {
+			// Log warning but continue - subchart might not be built yet
+			continue
+		}
+		
+		// Create parser for subchart
+		subchartParser := New()
+		if err := subchartParser.ParseChart(subchartPath); err != nil {
+			return err
+		}
+		
+		tp.subcharts[dep.Name] = subchartParser
+	}
+	
+	return nil
+}
+
 // GetValues returns the collected value paths
 func (tp *TemplateParser) GetValues() map[string]*ValuePath {
 	return tp.values
+}
+
+// GetSubcharts returns the subchart parsers
+func (tp *TemplateParser) GetSubcharts() map[string]*TemplateParser {
+	return tp.subcharts
+}
+
+// GetAllValues returns all value paths including those from subcharts
+func (tp *TemplateParser) GetAllValues() map[string]*ValuePath {
+	allValues := make(map[string]*ValuePath)
+	
+	// Add main chart values
+	for path, valuePath := range tp.values {
+		allValues[path] = valuePath
+	}
+	
+	// Add subchart values with proper prefixing
+	for subchartName, subchartParser := range tp.subcharts {
+		subchartValues := subchartParser.GetAllValues()
+		for path, valuePath := range subchartValues {
+			// Prefix subchart values with subchart name
+			prefixedPath := subchartName + "." + path
+			prefixedValuePath := &ValuePath{
+				Path:     prefixedPath,
+				Type:     valuePath.Type,
+				Required: valuePath.Required,
+				Default:  valuePath.Default,
+			}
+			allValues[prefixedPath] = prefixedValuePath
+		}
+	}
+	
+	return allValues
 }
 
 // parseVariableAssignments finds {{ $var := .Values.path }} patterns
