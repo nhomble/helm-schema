@@ -1,0 +1,28 @@
+name: "schema"
+version: "0.1.0"
+usage: "Derive JSON schema for Helm chart values"
+description: |-
+  Derive JSON Schema for Helm chart values by analyzing template files.
+  
+  This plugin parses Helm chart templates to extract .Values references and generates
+  a comprehensive JSON Schema that describes the structure and types of values
+  expected by the chart.
+  
+  Examples:
+    helm schema ./my-chart                    # Generate schema for chart
+    helm schema ./my-chart --no-subcharts    # Skip subchart parsing
+ignoreFlags: false
+command: "$HELM_PLUGIN_DIR/helm/helm-schema"
+platformCommand:
+  - os: linux
+    arch: amd64
+    command: "$HELM_PLUGIN_DIR/helm/helm-schema"
+  - os: linux
+    arch: arm64
+    command: "$HELM_PLUGIN_DIR/helm/helm-schema"
+  - os: darwin
+    arch: amd64
+    command: "$HELM_PLUGIN_DIR/helm/helm-schema"
+  - os: darwin
+    arch: arm64
+    command: "$HELM_PLUGIN_DIR/helm/helm-schema"
