@@ -42,7 +42,7 @@ func TestParseBasicChart(t *testing.T) {
 		"config":            "map",   // Contains sub-properties, correctly inferred as map
 		"secrets.name":      "primitive",
 		"secrets":           "primitive", // Used in if condition
-		"resources":         "map", // "resources" pattern suggests map object
+		"resources":         "map",       // "resources" pattern suggests map object
 	}
 
 	for expectedPath, expectedType := range expectedPaths {
