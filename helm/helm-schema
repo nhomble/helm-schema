@@ -5,18 +5,23 @@
 
 set -e
 
-# Check if helm-schema is available on PATH
-if ! command -v helm-schema &> /dev/null; then
-    echo "Error: helm-schema binary not found on PATH" >&2
+# Use the bundled binary from the plugin directory
+BINARY="$HELM_PLUGIN_DIR/helm-schema"
+
+# Check if the bundled binary exists
+if [[ ! -f "$BINARY" ]]; then
+    echo "Error: helm-schema binary not found in plugin directory" >&2
     echo "" >&2
-    echo "Please ensure helm-schema is installed and available on your PATH." >&2
+    echo "Expected binary at: $BINARY" >&2
+    echo "This indicates the plugin was not installed with the binary." >&2
     echo "" >&2
-    echo "Installation options:" >&2
-    echo "  1. Download from releases: https://github.com/your-org/helm-value-derive/releases" >&2
-    echo "  2. Build from source: go install github.com/your-org/helm-value-derive/cmd/helm-schema@latest" >&2
-    echo "  3. Use homebrew: brew install helm-schema" >&2
-    echo "" >&2
+    echo "Please reinstall the plugin with the binary included." >&2
     exit 1
+fi
+
+# Make sure binary is executable
+if [[ ! -x "$BINARY" ]]; then
+    chmod +x "$BINARY"
 fi
 
 # Check for help flag
@@ -32,7 +37,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     echo "  helm schema https://example.com/chart.tgz # Generate schema from remote chart"
     echo ""
     echo "Flags:"
-    helm-schema --help 2>&1 | grep -E "^\s*-"
+    "$BINARY" --help 2>&1 | grep -E "^\s*-"
     exit 0
 fi
 
@@ -78,5 +83,5 @@ if [[ "$CHART_PATH" =~ ^https?:// ]]; then
     set -- "$TEMP_DIR/$EXTRACTED_CHART" "$@"
 fi
 
-# Delegate to the actual helm-schema binary with all arguments
-exec helm-schema "$@"
+# Delegate to the bundled helm-schema binary with all arguments
+exec "$BINARY" "$@"
