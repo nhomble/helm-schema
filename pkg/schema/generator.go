@@ -110,7 +110,10 @@ func addPropertyToSchema(properties map[string]any, path string, valuePath *pars
 				// This is the final part, set the array item type
 				arrayProp := current[part].(map[string]any)
 				items := arrayProp["items"].(map[string]any)
-				items["type"] = getArrayItemType(valuePath.Type)
+				itemType := getArrayItemType(valuePath.Type)
+				if itemType != "primitive" {
+					items["type"] = itemType
+				}
 			} else {
 				// Navigate into the array items for nested properties
 				arrayProp := current[part].(map[string]any)
@@ -129,9 +132,13 @@ func addPropertyToSchema(properties map[string]any, path string, valuePath *pars
 		} else {
 			if i == len(parts)-1 {
 				// Final property
-				current[part] = map[string]any{
-					"type": valuePath.Type,
+				prop := make(map[string]any)
+				if valuePath.Type != "primitive" && valuePath.Type != "map" {
+					prop["type"] = valuePath.Type
+				} else if valuePath.Type == "map" {
+					prop["type"] = "object"
 				}
+				current[part] = prop
 			} else {
 				// Intermediate object - ensure it exists and has correct structure
 				if existingProp, exists := current[part]; exists {
@@ -162,6 +169,12 @@ func addPropertyToSchema(properties map[string]any, path string, valuePath *pars
 // getArrayItemType determines the appropriate type for array items
 func getArrayItemType(arrayType string) string {
 	if arrayType == "array" {
+		return "object"
+	}
+	if arrayType == "primitive" {
+		return "primitive" // Will be filtered out by caller
+	}
+	if arrayType == "map" {
 		return "object"
 	}
 	return "string"

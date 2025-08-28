@@ -93,9 +93,7 @@ func TestMergeSchemas(t *testing.T) {
 				"app": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"name": map[string]interface{}{
-							"type": "primitive",
-						},
+						"name": map[string]interface{}{},
 					},
 				},
 			},
@@ -109,12 +107,8 @@ func TestMergeSchemas(t *testing.T) {
 				"$schema": "https://json-schema.org/draft/2020-12/schema",
 				"type":    "object",
 				"properties": map[string]interface{}{
-					"host": map[string]interface{}{
-						"type": "primitive",
-					},
-					"port": map[string]interface{}{
-						"type": "primitive",
-					},
+					"host": map[string]interface{}{},
+					"port": map[string]interface{}{},
 				},
 			},
 		},
@@ -124,9 +118,7 @@ func TestMergeSchemas(t *testing.T) {
 				"$schema": "https://json-schema.org/draft/2020-12/schema",
 				"type":    "object",
 				"properties": map[string]interface{}{
-					"enabled": map[string]interface{}{
-						"type": "primitive",
-					},
+					"enabled": map[string]interface{}{},
 				},
 			},
 		},

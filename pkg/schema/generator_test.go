@@ -183,6 +183,8 @@ func TestArrayItemTypeInference(t *testing.T) {
 		{"string", "string"},
 		{"boolean", "string"},
 		{"integer", "string"},
+		{"map", "object"},
+		{"primitive", "primitive"},
 	}
 
 	for _, test := range tests {
@@ -191,5 +193,51 @@ func TestArrayItemTypeInference(t *testing.T) {
 			t.Errorf("getArrayItemType(%s) = %s, expected %s",
 				test.arrayType, result, test.expected)
 		}
+	}
+}
+
+func TestMapTypesToObjectConversion(t *testing.T) {
+	// Test that "map" types get converted to "object" in JSON Schema
+	values := map[string]*parser.ValuePath{
+		"config.data": {
+			Path:     "config.data",
+			Type:     "map",
+			Required: false,
+		},
+		"resources": {
+			Path:     "resources",
+			Type:     "map",
+			Required: false,
+		},
+		"app.settings": {
+			Path:     "app.settings",
+			Type:     "primitive",
+			Required: false,
+		},
+	}
+
+	schema := Generate(values)
+	properties := schema["properties"].(map[string]interface{})
+
+	// Test config.data (map type should become object)
+	configProp := properties["config"].(map[string]interface{})
+	configProperties := configProp["properties"].(map[string]interface{})
+	dataProp := configProperties["data"].(map[string]interface{})
+	if dataProp["type"] != "object" {
+		t.Error("map type should be converted to object")
+	}
+
+	// Test resources (map type should become object)
+	resourcesProp := properties["resources"].(map[string]interface{})
+	if resourcesProp["type"] != "object" {
+		t.Error("map type should be converted to object")
+	}
+
+	// Test app.settings (primitive type should have no type field)
+	appProp := properties["app"].(map[string]interface{})
+	appProperties := appProp["properties"].(map[string]interface{})
+	settingsProp := appProperties["settings"].(map[string]interface{})
+	if _, hasType := settingsProp["type"]; hasType {
+		t.Error("primitive type should not have a type field")
 	}
 }
