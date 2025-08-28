@@ -4,6 +4,8 @@ derive a json schema for your chart
 
 ## usage
 
+`helm plugin install https://github.com/nhomble/helm-schema`
+
 ### via plugin
 
 ```
