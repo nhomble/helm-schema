@@ -73,5 +73,5 @@ if [[ "$CHART_PATH" =~ ^https?:// ]]; then
     set -- "$TEMP_DIR/$EXTRACTED_CHART" "$@"
 fi
 
-# Delegate to the bundled helm-schema binary with all arguments
-exec "$BINARY" "$@"
+OUTFILE="values.schema.json"
+exec "$BINARY" "$@" > "$CHART_PATH/$OUTFILE"

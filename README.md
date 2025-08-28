@@ -10,6 +10,7 @@ derive a json schema for your chart
 
 ```
 helm schema ./chart/dir
+cat ./chart/dir/values.schema.json
 ```
 
 ### via cli
