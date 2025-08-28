@@ -16,7 +16,7 @@ ifeq ($(GOARCH),$(shell go env GOARCH))
 endif
 endif
 
-.PHONY: clean test fmt
+.PHONY: clean test fmt test/example
 
 all: build
 
@@ -31,6 +31,6 @@ test:
 
 test/example: build
 	./$(OUTPUT) test-charts/basic/
-
+	
 clean:
 	rm -f $(PROG) $(PROG)-*
