@@ -10,9 +10,10 @@ import (
 // Generate creates a JSON Schema from the collected value paths
 func Generate(values map[string]*parser.ValuePath) map[string]any {
 	schema := map[string]any{
-		"$schema":    "https://json-schema.org/draft/2020-12/schema",
-		"type":       "object",
-		"properties": make(map[string]any),
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"type":                 "object",
+		"properties":           make(map[string]any),
+		"additionalProperties": false,
 	}
 
 	properties := schema["properties"].(map[string]any)
@@ -61,9 +62,10 @@ func GenerateChartSchemas(parser *parser.TemplateParser) (ChartSchema, []ChartSc
 // MergeSchemas combines main chart and subchart schemas into a single schema
 func MergeSchemas(mainSchema ChartSchema, subchartSchemas []ChartSchema) map[string]any {
 	mergedSchema := map[string]any{
-		"$schema":    "https://json-schema.org/draft/2020-12/schema",
-		"type":       "object",
-		"properties": make(map[string]any),
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"type":                 "object",
+		"properties":           make(map[string]any),
+		"additionalProperties": false,
 	}
 
 	properties := mergedSchema["properties"].(map[string]any)
@@ -80,8 +82,9 @@ func MergeSchemas(mainSchema ChartSchema, subchartSchemas []ChartSchema) map[str
 		if subchartProps, ok := subchartSchema.Schema["properties"].(map[string]any); ok {
 			// Create a nested object for the subchart
 			properties[subchartSchema.Name] = map[string]any{
-				"type":       "object",
-				"properties": subchartProps,
+				"type":                 "object",
+				"properties":           subchartProps,
+				"additionalProperties": false,
 			}
 		}
 	}
@@ -121,6 +124,7 @@ func addPropertyToSchema(properties map[string]any, path string, valuePath *pars
 				if _, hasType := items["type"]; !hasType {
 					items["type"] = "object"
 					items["properties"] = make(map[string]any)
+					items["additionalProperties"] = false
 				}
 				if props, ok := items["properties"]; ok {
 					current = props.(map[string]any)
@@ -151,13 +155,17 @@ func addPropertyToSchema(properties map[string]any, path string, valuePath *pars
 						if _, hasProps := obj["properties"]; !hasProps {
 							obj["properties"] = make(map[string]any)
 						}
+						if _, hasAdditional := obj["additionalProperties"]; !hasAdditional {
+							obj["additionalProperties"] = false
+						}
 						current = obj["properties"].(map[string]any)
 					}
 				} else {
 					// Create new intermediate object
 					current[part] = map[string]any{
-						"type":       "object",
-						"properties": make(map[string]any),
+						"type":                 "object",
+						"properties":           make(map[string]any),
+						"additionalProperties": false,
 					}
 					obj := current[part].(map[string]any)
 					current = obj["properties"].(map[string]any)

@@ -56,6 +56,11 @@ func TestGenerateBasicSchema(t *testing.T) {
 		t.Error("app should be object type")
 	}
 
+	// Test additionalProperties is false
+	if appProp["additionalProperties"] != false {
+		t.Error("app should have additionalProperties set to false")
+	}
+
 	appProperties := appProp["properties"].(map[string]interface{})
 
 	// Test app.name
